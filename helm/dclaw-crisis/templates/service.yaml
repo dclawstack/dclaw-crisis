@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dclaw-crisis.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "dclaw-crisis.name" . }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: 3051
+      name: frontend
+    - port: {{ .Values.backend.service.port }}
+      targetPort: 8137
+      name: backend
+  selector:
+    app.kubernetes.io/name: {{ include "dclaw-crisis.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dclaw-crisis.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "dclaw-crisis.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "dclaw-crisis.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "dclaw-crisis.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: 3051
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - containerPort: 8137
+          env:
+            - name: CRISIS_DATABASE_URL
+              value: {{ .Values.backend.env.CRISIS_DATABASE_URL | quote }}

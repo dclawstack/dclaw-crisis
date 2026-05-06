@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "dclaw-crisis.name" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "dclaw-crisis.name" . }}
+spec:
+  rules:
+    - host: dclaw-crisis.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dclaw-crisis.name" . }}
+                port:
+                  number: {{ .Values.frontend.service.port }}

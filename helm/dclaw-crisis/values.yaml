@@ -1,0 +1,26 @@
+replicaCount: 1
+
+frontend:
+  image:
+    repository: dclaw-crisis-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3051
+  ingress:
+    enabled: false
+
+backend:
+  image:
+    repository: dclaw-crisis-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8137
+  env:
+    CRISIS_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/dclaw_crisis"
+
+database:
+  name: dclaw_crisis
