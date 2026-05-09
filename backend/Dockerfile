@@ -2,11 +2,26 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e "."
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev && \
+    pip install --no-cache-dir uv && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY src ./src
+COPY requirements.txt .
+RUN uv pip install --system --no-cache -r requirements.txt
 
-EXPOSE 8137
+COPY . .
 
-CMD ["uvicorn", "dclaw_crisis.main:app", "--host", "0.0.0.0", "--port", "8137"]
+RUN groupadd -r appuser && useradd -r -g appuser appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8151
+
+EXPOSE 8151
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8151/health/')" || exit 1
+
+CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8151"]
