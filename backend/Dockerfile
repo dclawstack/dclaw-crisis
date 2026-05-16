@@ -17,11 +17,11 @@ USER appuser
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8151
+ENV PORT=8061
 
-EXPOSE 8151
+EXPOSE 8061
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8151/health/')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8061/health/')" || exit 1
 
-CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8151"]
+CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8061"]
