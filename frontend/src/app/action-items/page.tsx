@@ -69,7 +69,7 @@ export default function ActionItemsPage() {
           <p className="text-sm text-gray-500">Track and manage response tasks</p>
         </div>
         <div className="flex gap-3">
-          <Link href="/"><Button variant="outline">Dashboard</Button></Link>
+          <Link href="/dashboard"><Button variant="outline">Dashboard</Button></Link>
         </div>
       </header>
 

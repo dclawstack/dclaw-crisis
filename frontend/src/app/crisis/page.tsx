@@ -100,7 +100,7 @@ export default function CrisisListPage() {
           <p className="text-sm text-gray-500">Manage and track all incidents</p>
         </div>
         <div className="flex gap-3">
-          <Link href="/"><Button variant="outline">Dashboard</Button></Link>
+          <Link href="/dashboard"><Button variant="outline">Dashboard</Button></Link>
           <Dialog open={open} onOpenChange={setOpen}>
             <Button onClick={() => setOpen(true)}>Declare Crisis</Button>
             <DialogContent className="max-w-lg">
