@@ -93,7 +93,9 @@ async def test_instantiate_playbook_creates_crisis_with_actions(client):
         json={"title": "Q3 Intrusion", "severity": "high"},
     )
     assert res.status_code == 201
-    crisis = res.json()
+    body = res.json()
+    assert body["ai_customized"] is False
+    crisis = body["crisis"]
     assert crisis["title"] == "Q3 Intrusion"
     assert crisis["category"] == "security"
     assert crisis["status"] == "responding"

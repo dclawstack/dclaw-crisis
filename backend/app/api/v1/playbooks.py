@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,10 @@ from app.schemas.crisis import CrisisResponse
 from app.repositories.playbook_repo import PlaybookRepository
 from app.repositories.crisis_repo import CrisisRepository
 from app.services.playbook_seed import seed_playbooks
+from app.services.ai_playbook_customizer import customize_steps
+from app.services.llm import LLMUnavailableError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -80,17 +86,39 @@ class InstantiateRequest(BaseModel):
     title: str
     description: str | None = None
     severity: str = "medium"
+    incident_context: str | None = None
+    ai_customize: bool = False
 
 
-@router.post("/{pb_id}/instantiate", response_model=CrisisResponse, status_code=201)
+class InstantiateResponse(BaseModel):
+    crisis: CrisisResponse
+    ai_customized: bool
+
+
+@router.post("/{pb_id}/instantiate", response_model=InstantiateResponse, status_code=201)
 async def instantiate_playbook(
     pb_id: str, payload: InstantiateRequest, db: AsyncSession = Depends(get_db)
 ):
-    """Create a Crisis from a Playbook template, populating action items from steps."""
+    """Create a Crisis from a Playbook template, populating action items from steps.
+
+    If `ai_customize=true` and `incident_context` is provided, an AI pass rewrites
+    each step's title/description to be specific to the incident.
+    """
     pb_repo = PlaybookRepository(db)
     pb = await pb_repo.get_by_id(pb_id)
     if not pb:
         raise HTTPException(status_code=404, detail="Playbook not found")
+
+    customized_steps: list[dict] | None = None
+    ai_customized = False
+    if payload.ai_customize and payload.incident_context and payload.incident_context.strip():
+        try:
+            customized_steps = await customize_steps(pb, payload.incident_context)
+            ai_customized = True
+        except LLMUnavailableError as exc:
+            logger.warning("AI customization unavailable, falling back to generic steps: %s", exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("AI customization failed (%s): %s", type(exc).__name__, exc)
 
     crisis_repo = CrisisRepository(db)
     crisis = Crisis(
@@ -102,7 +130,8 @@ async def instantiate_playbook(
     )
     crisis = await crisis_repo.create(crisis)
 
-    for step in sorted(pb.steps or [], key=lambda s: s.get("order", 0)):
+    source_steps = customized_steps if customized_steps else (pb.steps or [])
+    for step in sorted(source_steps, key=lambda s: s.get("order", 0)):
         action = ActionItem(
             crisis_id=crisis.id,
             title=step.get("title", "Untitled step"),
@@ -113,4 +142,4 @@ async def instantiate_playbook(
         db.add(action)
     await db.commit()
     await db.refresh(crisis)
-    return crisis
+    return InstantiateResponse(crisis=crisis, ai_customized=ai_customized)

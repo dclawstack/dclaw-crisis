@@ -1,6 +1,6 @@
 ---
 tags: [meta, prd, revised, swarm]
-version: 2.4
+version: 2.6
 date: 2026-05-18
 app_id: crisis
 app_name: DClaw Crisis
@@ -8,7 +8,7 @@ category: Operations
 status: Active
 ---
 
-# 📘 DClaw Crisis — Revised PRD v2.4
+# 📘 DClaw Crisis — Revised PRD v2.6
 
 > **The single document every agent must read before writing code for this app.**
 > Generated from DClaw Master PRD v2.2. Read the Master PRD first: https://raw.githubusercontent.com/dclawstack/dclaw-prd/main/DClaw-Master-PRD.md
@@ -61,8 +61,8 @@ status: Active
 | AI Copilot UI | ✅ Floating chat on every route |
 
 ### 2.3 Feature Maturity
-- **P0 Foundation:** ✅ Implemented (Copilot, Command Center, Response Planning). Detection (P0.2) is deferred — see §13.
-- **P1 Platform:** 🟡 Communication Management partially shipped (AI drafting + multi-type/channel). Stakeholder mapping, resource mobilization, post-crisis review still pending.
+- **P0 Foundation:** ✅ Fully implemented (Copilot, Detection, Response Planning at 20 templates + AI customization, Command Center with Situation Map).
+- **P1 Platform:** 🟡 Communication Management (AI drafting) + Post-Crisis Review (AI post-mortem + playbook advisor) shipped. Stakeholder Mapping and Resource Mobilization still pending.
 - **P2 Vertical:** Not yet started
 
 ---
@@ -76,7 +76,7 @@ status: Active
 | 3 | No AI summarizer / recommender / comm draft | 🟡 | ✅ Closed | Endpoints under `/api/v1/crisis/{id}/summarize`, `/next-action`, `/communications/draft` |
 | 4 | No response plan templates (P0.3) | 🟡 | ✅ Closed | 5 seeded playbooks + `POST /playbooks/{id}/instantiate` |
 | 5 | Command Center lacks resource view + decision support | 🟡 | ✅ Closed | Dashboard now polls every 15s, shows team availability + AI recommendation for top-severity active crisis |
-| 6 | Crisis Detection (P0.2 — monitor 1000 sources) | 🟡 | ⏳ Deferred | See §13 — out of scope for v1.3. Manual signal ingestion only. |
+| 6 | Crisis Detection (P0.2) | 🟡 | ✅ Closed | Signal ingestion contract + AI scoring shipped (`/api/v1/signals/`); see §14. Pollers for real sources (RSS/social/news) deferred to integration work. |
 | 7 | Stakeholder Mapping (P1.2) | 🟡 | ⏳ Pending | v1.4 candidate |
 | 8 | Resource Mobilization (P1.3) | 🟡 | ⏳ Pending | v1.4 candidate |
 | 9 | Post-Crisis Review (P1.4) | 🟡 | ⏳ Pending | v1.4 candidate — AI lessons-extraction over resolved crises |
@@ -134,9 +134,9 @@ status: Active
 | # | Feature | Status | Description | AI Component | Acceptance Criteria |
 |---|---------|--------|-------------|--------------|---------------------|
 | P0.1 | **AI Crisis Copilot** | ✅ Shipped | Detect crises, orchestrate response, and manage communications. | LLM crisis-detection + response-orchestration + communication-drafting | Floating chat on every route; per-crisis Summarize / Next-Action / Draft-Comm endpoints; OpenRouter primary, Ollama fallback |
-| P0.2 | **Crisis Detection** | ⏳ Deferred (v1.4) | Monitor social media, news, and internal systems for crisis signals. | AI signal-detection + severity-scoring + early-warning | Monitor 1000 sources; detect signals; severity score; early warning |
-| P0.3 | **Response Planning** | ✅ Shipped (v1) | Pre-built crisis response plans, instantiable to a live crisis with action items. | AI plan-customization + resource-allocation | 5 seeded templates; `POST /playbooks/{id}/instantiate` → new Crisis + action items. Target: 20 templates + AI customization in v1.4 |
-| P0.4 | **Command Center** | ✅ Shipped (v1) | Real-time crisis dashboard with resource availability and AI decision support. | AI situation-awareness + resource-optimization | 15s polling refresh; team availability by department; AI recommendation for top-severity active crisis. Target: situation map in v1.4 |
+| P0.2 | **Crisis Detection** | ✅ Shipped (v1) | Ingest signals from any source and AI-triage them before they become full crises. | AI signal-detection + severity-scoring + early-warning | Open ingestion contract (`POST /signals/`) any webhook/monitor can call; AI scores severity/category/confidence on ingest; flags `ai_recommends_promotion`; human always approves promotion to Crisis. Real source pollers (RSS, social, news) are integration follow-ups against this contract. |
+| P0.3 | **Response Planning** | ✅ Shipped | Pre-built crisis response plans, instantiable to a live crisis with action items, with optional AI customization to the specific incident. | AI plan-customization + resource-allocation | 20 seeded templates; `POST /playbooks/{id}/instantiate` accepts `incident_context` → AI rewrites each step for the specific incident. |
+| P0.4 | **Command Center** | ✅ Shipped | Real-time crisis dashboard with situation map, resource availability, and AI decision support. | AI situation-awareness + resource-optimization | Situation Map (severity rows × active crises with age, action progress, escalation flag for stale critical >1h); 15s polling refresh; team availability by department; AI recommendation for top-severity active crisis. |
 
 ---
 
@@ -147,7 +147,7 @@ status: Active
 | P1.1 | **Communication Management** | 🟡 Partial | Draft and distribute crisis communications across channels. | AI communication-drafting + channel-optimization + sentiment-monitoring | ✅ AI drafting in <2 min via `/communications/draft`. ⏳ Channel send-out and sentiment monitoring pending |
 | P1.2 | **Stakeholder Mapping** | ⏳ Pending | Track and communicate with internal and external stakeholders. | AI stakeholder-prioritization + communication-timing | Map 100 stakeholders; prioritize; schedule communications |
 | P1.3 | **Resource Mobilization** | ⏳ Pending | Track and deploy resources during crisis response. | AI resource-matching + deployment-optimization | Track 50 resource types; match to need; optimize deployment |
-| P1.4 | **Post-Crisis Review** | ⏳ Pending | Document lessons learned and update plans. | AI lessons-extraction + plan-update-suggestion | Extract 10 lessons; suggest plan updates; track implementation |
+| P1.4 | **Post-Crisis Review** | ✅ Shipped | Generate a structured AI post-mortem and suggest playbook updates from any crisis. | AI lessons-extraction + plan-update-suggestion | `POST /crisis/{id}/post-mortem` → {timeline_summary, what_went_well, what_went_poorly, root_cause, lessons_learned, is_speculative}. `POST /crisis/{id}/suggest-playbook-updates` → ranked suggestions (add/rewrite/remove/change_role) against the closest-category playbook. Never auto-applies. |
 
 ---
 
@@ -197,11 +197,12 @@ Every DClaw app MUST have an AI Copilot as its first P0 feature. The copilot mus
 
 ## 10. Next Tasks for Vibe Coders
 
-1. **Set `OPENROUTER_API_KEY`** in `.env` and verify the Copilot, summarizer, and recommender against a live model.
-2. **Stakeholder Mapping (P1.2)** — new model + page; AI prioritization scoring.
-3. **Post-Crisis Review (P1.4)** — extend resolved-crisis flow with AI lessons-extraction and playbook-update suggestions.
-4. **Expand response-plan templates** from 5 → 20, and add AI auto-customization at instantiation time.
-5. **Crisis Detection scaffold (P0.2)** — add `signals` model + ingestion endpoint with AI severity scoring; integrate one external feed (RSS).
+1. **Stakeholder Mapping (P1.2)** — new model + page; AI prioritization scoring against active crises.
+2. **Resource Mobilization (P1.3)** — track resource types/locations; AI matching of resources to active crisis needs.
+3. **First real source integration** — build an RSS poller (or a Slack/Datadog webhook adapter) that posts to `/api/v1/signals/`. Demonstrates the ingestion contract end-to-end against a live feed.
+4. **Playbook advisor → one-click apply** — let operators accept individual suggested_changes and write them back to the playbook (with audit trail).
+5. **Communication Management Phase 2 (P1.1)** — actually send the AI-drafted message to email/Slack/SMS channels and monitor sentiment.
+6. **Signal deduplication** — merge near-identical signals from the same source within a time window.
 
 ---
 
@@ -251,12 +252,59 @@ This release closes the foundational gaps identified in v2.3 of this PRD. Summar
 - `app/core/config.py` — added LLM provider settings (OpenRouter URL/model/key, Ollama URL/model)
 
 **Explicit deferrals**
-- **P0.2 Crisis Detection** at "monitor 1000 sources" scope — too large for this cycle. The Copilot accepts manually declared crises today; an ingestion endpoint with AI severity scoring is the natural next step.
 - **RAG / vector search** for the Copilot — current context loader pulls structured DB rows, not embeddings. pgvector or Qdrant can be layered in once we have crisis post-mortems and playbook docs worth indexing.
 - **Real-time situation map** — dashboard polls every 15s today; WebSocket/SSE upgrade is in PLAN-v1.2 P2.7.
 
 ---
 
-*Revised PRD version: 2.4*
-*Updated: 2026-05-18 — gap closure release*
-*Next review: After v1.4 stakeholder mapping + post-crisis review ship*
+## 14. P0.2 Crisis Detection — design notes (2026-05-18)
+
+The PRD originally framed P0.2 as "monitor 1000 sources." That number is aspirational and the wrong unit of work — building 1000 source-specific scrapers is integration work that scales by the source, not by core platform value. Instead, this release ships the platform-side contract and AI triage pipeline; specific source pollers can then be added incrementally without touching the core.
+
+**Architecture**
+- `Signal` model (`backend/app/models/signal.py`): immutable record of one observation, with optional `crisis_id` link if it was promoted.
+- `POST /api/v1/signals/` is the universal ingestion endpoint — any integration (RSS poller, Slack bot, Datadog webhook, manual entry, internal alert) posts the same payload.
+- `services/ai_signal_scorer.py` runs synchronously on ingest by default and returns `{severity, category, confidence, summary, rationale, is_crisis}`. The scorer is conservative on severity by system prompt and clamps confidence + falls back to safe defaults if the model strays from the schema.
+- `ai_recommends_promotion` is set only when `is_crisis=true`, severity is `high`/`critical`, **and** confidence ≥ 0.6 — flagged visually in the UI but **never auto-promotes**. Crisis declaration always requires a human click.
+
+**Operator UI**
+- `/signals` is a 4-column kanban: New → Triaged → Promoted / Dismissed. Auto-refreshes every 15s. Recommended-for-promotion signals are highlighted with a pink border so they stand out in the "New" column.
+- One-click `Promote` creates a Crisis (with AI-derived defaults overrideable on the spot) and links the originating Signal.
+
+**What is intentionally NOT in v1**
+- No real source pollers (RSS, social, news, status pages). The contract is ready; pollers are integration work that lives outside the core repo or in isolated workers.
+- No deduplication. Two near-identical signals from the same source become two rows. The Next Tasks list calls this out.
+- No background scoring queue. Scoring is inline on ingest; ingestion latency = LLM round-trip (~1-3s for Kimi K2). If volume grows, swap to a Temporal workflow.
+- No alerting/paging on `ai_recommends_promotion=true`. The dashboard surfaces it; downstream notification routing is out of scope.
+
+**Tests**: 12 new (`tests/test_signals.py`), mocked LLM. Full suite: **46 passing**.
+
+---
+
+---
+
+## 15. P0 polish + P1.4 — design notes (2026-05-18)
+
+This release completes the remaining P0 polish items and ships P1.4 Post-Crisis Review.
+
+**P0.3 → 20 templates + AI customization**
+- `playbook_seed.py` expanded from 5 → 20 templates covering: ransomware, cloud provider outage, key personnel departure, regulatory inquiry, product recall, GDPR/CCPA DSAR, third-party vendor failure, DDoS, phishing/BEC, financial fraud, IP theft, executive impersonation/deepfake, insider threat, natural disaster, pandemic.
+- `services/ai_playbook_customizer.py` rewrites each step's title/description for a specific incident when the operator provides `incident_context` on instantiate. Roles and step counts are preserved (the model can't add or drop steps). Falls back to generic steps if the LLM call fails — the response shape includes `ai_customized: bool` so the UI can show whether AI was used.
+- **Breaking API change**: `POST /playbooks/{id}/instantiate` now returns `{crisis, ai_customized}` instead of `CrisisResponse` directly. Tests + frontend updated.
+
+**P0.4 → Situation Map**
+- New `SituationMap` component above the existing dashboard cards. Renders all active crises (detected/assessing/responding) as cards in a 4-row grid by severity. Each card shows status, category, age, and action-item progress bar. Cards turn red when severity=critical AND age > 1 hour (escalation indicator). Header chips summarize the critical/high counts and stale-critical count for at-a-glance situational awareness.
+- Polling cadence (15s) shared with the rest of the dashboard.
+
+**P1.4 → Post-Crisis Review**
+- `services/ai_post_mortem.py` returns a structured post-mortem: timeline summary, what-went-well, what-went-poorly, root cause, lessons-learned, `is_speculative` flag for thin-context cases. Safe shaping: every list field is normalized via `_as_list` so malformed AI output doesn't break the response model.
+- `services/ai_playbook_advisor.py` finds the closest-category playbook and suggests concrete changes — add/rewrite/remove step or change role — each with a rationale. **Never auto-applies.** The frontend renders suggestions as cards; a future PR will add one-click "Apply this change" with an audit trail.
+- Endpoints live under `POST /crisis/{id}/post-mortem` and `POST /crisis/{id}/suggest-playbook-updates`. Both work on any crisis status but the UI nudges the operator to use them on resolved/contained crises where context is richer.
+
+**Tests**: 52 passing (10 new, covering post-mortem 200/404, advisor with/without matching playbook, AI customization with/without context, junk-entry filtering).
+
+---
+
+*Revised PRD version: 2.6*
+*Updated: 2026-05-18 — P0 100% complete; P1 ½ shipped (P1.1 partial + P1.4 full)*
+*Next review: After Stakeholder Mapping (P1.2) and Resource Mobilization (P1.3) ship*

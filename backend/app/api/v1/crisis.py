@@ -9,6 +9,8 @@ from app.schemas.crisis import CrisisCreate, CrisisUpdate, CrisisResponse
 from app.repositories.crisis_repo import CrisisRepository
 from app.services.ai_summarizer import summarize_crisis
 from app.services.ai_recommender import recommend_next_action
+from app.services.ai_post_mortem import generate_post_mortem
+from app.services.ai_playbook_advisor import suggest_playbook_updates
 from app.services.llm import LLMUnavailableError
 
 router = APIRouter()
@@ -118,3 +120,60 @@ async def next_action(crisis_id: str, db: AsyncSession = Depends(get_db)):
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
     return NextActionResponse(**data)
+
+
+class PostMortemResponse(BaseModel):
+    timeline_summary: str
+    what_went_well: list[str]
+    what_went_poorly: list[str]
+    root_cause: str
+    lessons_learned: list[str]
+    is_speculative: bool
+
+
+class PlaybookChange(BaseModel):
+    kind: str
+    step_order: int | None
+    new_title: str | None
+    new_description: str | None
+    new_role: str | None
+    rationale: str
+
+
+class PlaybookAdvisorResponse(BaseModel):
+    playbook_id: str | None
+    playbook_name: str | None
+    summary: str
+    suggested_changes: list[PlaybookChange]
+
+
+@router.post("/{crisis_id}/post-mortem", response_model=PostMortemResponse)
+async def post_mortem(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    """Generate a structured post-mortem. Works best for resolved/contained crises but accepts any status."""
+    repo = CrisisRepository(db)
+    crisis = await repo.get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        data = await generate_post_mortem(crisis)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
+    return PostMortemResponse(**data)
+
+
+@router.post("/{crisis_id}/suggest-playbook-updates", response_model=PlaybookAdvisorResponse)
+async def suggest_playbook_changes(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    """Suggest concrete updates to the closest-matching playbook based on this crisis."""
+    repo = CrisisRepository(db)
+    crisis = await repo.get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        data = await suggest_playbook_updates(crisis, db)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
+    return PlaybookAdvisorResponse(**data)

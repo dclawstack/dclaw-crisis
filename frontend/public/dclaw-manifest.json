@@ -17,6 +17,7 @@
   "routes": [
     { "path": "/", "label": "Landing" },
     { "path": "/dashboard", "label": "Command Center" },
+    { "path": "/signals", "label": "Signals (Crisis Detection)" },
     { "path": "/crisis", "label": "Crises" },
     { "path": "/team", "label": "Team" },
     { "path": "/action-items", "label": "Action Items" },
@@ -28,7 +29,7 @@
     "providers": ["openrouter", "ollama"]
   },
   "features": {
-    "p0": ["ai_crisis_copilot", "command_center", "response_planning"],
+    "p0": ["ai_crisis_copilot", "command_center", "response_planning", "crisis_detection"],
     "p1": ["communication_management", "stakeholder_mapping"],
     "p2": []
   },
