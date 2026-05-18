@@ -212,6 +212,56 @@ export async function deletePlaybook(id: string) {
   return fetchJson<void>(`/api/v1/playbooks/${id}`, { method: "DELETE" });
 }
 
+// Crisis Detection — Signals
+export type SignalStatus = "new" | "triaged" | "promoted" | "dismissed";
+
+export interface Signal {
+  id: string;
+  source: string;
+  source_url: string | null;
+  raw_text: string;
+  ai_summary: string | null;
+  ai_severity: "critical" | "high" | "medium" | "low" | null;
+  ai_category: Crisis["category"] | null;
+  ai_confidence: number | null;
+  ai_rationale: string | null;
+  ai_recommends_promotion: boolean;
+  status: SignalStatus;
+  crisis_id: string | null;
+  detected_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listSignals(status?: SignalStatus) {
+  const query = new URLSearchParams();
+  if (status) query.set("status", status);
+  return fetchJson<Signal[]>(`/api/v1/signals/?${query.toString()}`);
+}
+
+export async function ingestSignal(payload: { source: string; raw_text: string; source_url?: string; auto_score?: boolean }) {
+  return fetchJson<Signal>("/api/v1/signals/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function rescoreSignal(id: string) {
+  return fetchJson<Signal>(`/api/v1/signals/${id}/rescore`, { method: "POST" });
+}
+
+export async function triageSignal(id: string) {
+  return fetchJson<Signal>(`/api/v1/signals/${id}/triage`, { method: "POST" });
+}
+
+export async function dismissSignal(id: string) {
+  return fetchJson<Signal>(`/api/v1/signals/${id}/dismiss`, { method: "POST" });
+}
+
+export async function promoteSignal(
+  id: string,
+  payload: { title?: string; description?: string; severity_override?: string } = {},
+) {
+  return fetchJson<Signal>(`/api/v1/signals/${id}/promote`, { method: "POST", body: JSON.stringify(payload) });
+}
+
 // Playbook templating
 export async function seedPlaybooks() {
   return fetchJson<{ created: number; skipped: number }>("/api/v1/playbooks/seed", { method: "POST" });
