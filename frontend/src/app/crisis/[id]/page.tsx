@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, type Crisis, type ActionItem, type Communication, ApiError } from "@/lib/api";
+import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, summarizeCrisis, getNextAction, draftCommunication, type Crisis, type ActionItem, type Communication, type NextAction, ApiError } from "@/lib/api";
+import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,13 @@ export default function CrisisDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [commOpen, setCommOpen] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [nextAction, setNextAction] = useState<NextAction | null>(null);
+  const [nextActionLoading, setNextActionLoading] = useState(false);
+  const [draftLoading, setDraftLoading] = useState(false);
+  const [draftedMessage, setDraftedMessage] = useState<string>("");
+  const [aiError, setAiError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -99,6 +107,62 @@ export default function CrisisDetailPage() {
       load();
     } catch (err) {
       alert("Failed to add action item");
+    }
+  }
+
+  async function handleSummarize() {
+    setSummaryLoading(true);
+    setAiError(null);
+    try {
+      const res = await summarizeCrisis(id);
+      setSummary(res.summary);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Summary failed");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  async function handleNextAction() {
+    setNextActionLoading(true);
+    setAiError(null);
+    try {
+      const res = await getNextAction(id);
+      setNextAction(res);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Next action failed");
+    } finally {
+      setNextActionLoading(false);
+    }
+  }
+
+  async function handleCreateRecommendedAction() {
+    if (!nextAction) return;
+    try {
+      await createActionItem({
+        crisis_id: id,
+        title: nextAction.title,
+        description: nextAction.description,
+        status: "pending",
+        priority: nextAction.priority as ActionItem["priority"],
+      });
+      setNextAction(null);
+      load();
+    } catch {
+      alert("Failed to create action item");
+    }
+  }
+
+  async function handleDraftComm(commType: string, channel: string, audience?: string) {
+    setDraftLoading(true);
+    setAiError(null);
+    try {
+      const res = await draftCommunication({ crisis_id: id, comm_type: commType, channel, audience });
+      setDraftedMessage(res.draft);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Draft failed");
+    } finally {
+      setDraftLoading(false);
     }
   }
 
@@ -208,6 +272,46 @@ export default function CrisisDetailPage() {
               <div className="text-xs text-gray-500">Detected: {new Date(crisis.detected_at || crisis.created_at).toLocaleString()}</div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2">
+              <Sparkles className="h-4 w-4 text-pink-600" />
+              <CardTitle className="text-base">AI Copilot Tools</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-col gap-2">
+                <Button onClick={handleSummarize} size="sm" variant="outline" disabled={summaryLoading}>
+                  {summaryLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
+                  Generate executive summary
+                </Button>
+                <Button onClick={handleNextAction} size="sm" variant="outline" disabled={nextActionLoading}>
+                  {nextActionLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
+                  Recommend next action
+                </Button>
+              </div>
+              {aiError && (
+                <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded p-2">{aiError}</div>
+              )}
+              {summary && (
+                <div className="border border-pink-200 bg-pink-50 rounded p-3">
+                  <div className="text-xs font-semibold text-pink-700 mb-1 uppercase tracking-wide">AI Summary</div>
+                  <div className="text-sm text-slate-800 whitespace-pre-wrap">{summary}</div>
+                </div>
+              )}
+              {nextAction && (
+                <div className="border border-pink-200 bg-pink-50 rounded p-3 space-y-2">
+                  <div className="text-xs font-semibold text-pink-700 uppercase tracking-wide">Recommended Next Action</div>
+                  <div className="font-medium text-sm">{nextAction.title}</div>
+                  <div className="text-sm text-slate-700">{nextAction.description}</div>
+                  <div className="text-xs text-slate-500">
+                    Priority: <span className="font-semibold">{nextAction.priority}</span> · Suggested role: {nextAction.suggested_assignee_role}
+                  </div>
+                  <div className="text-xs italic text-slate-600">Why: {nextAction.rationale}</div>
+                  <Button onClick={handleCreateRecommendedAction} size="sm" className="w-full">Create this action item</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Main column */}
@@ -265,12 +369,38 @@ export default function CrisisDetailPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Communications</CardTitle>
-              <Dialog open={commOpen} onOpenChange={setCommOpen}>
+              <Dialog open={commOpen} onOpenChange={(o) => { setCommOpen(o); if (!o) { setDraftedMessage(""); } }}>
                 <Button onClick={() => setCommOpen(true)} size="sm">Post Update</Button>
                 <DialogContent className="max-w-md">
                   <DialogHeader><DialogTitle>Post Communication</DialogTitle></DialogHeader>
                   <form onSubmit={handleAddComm} className="space-y-4">
-                    <div><Label>Message</Label><Input name="message" required /></div>
+                    <div>
+                      <Label>Message</Label>
+                      <textarea
+                        name="message"
+                        required
+                        rows={5}
+                        defaultValue={draftedMessage}
+                        key={draftedMessage}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 w-full"
+                        onClick={() => {
+                          const form = document.querySelector<HTMLFormElement>('form');
+                          const typeEl = form?.elements.namedItem('comm_type') as HTMLSelectElement | null;
+                          const chanEl = form?.elements.namedItem('channel') as HTMLSelectElement | null;
+                          handleDraftComm(typeEl?.value || 'internal_update', chanEl?.value || 'app');
+                        }}
+                        disabled={draftLoading}
+                      >
+                        {draftLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Sparkles className="h-3 w-3 mr-2" />}
+                        AI draft this message
+                      </Button>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label>Type</Label>

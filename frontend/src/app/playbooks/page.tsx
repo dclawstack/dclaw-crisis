@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listPlaybooks, createPlaybook, updatePlaybook, deletePlaybook, type Playbook, type PlaybookStep, ApiError } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { listPlaybooks, createPlaybook, updatePlaybook, deletePlaybook, seedPlaybooks, instantiatePlaybook, type Playbook, type PlaybookStep, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,10 +13,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select } from "@/components/ui/select";
 
 export default function PlaybooksPage() {
+  const router = useRouter();
   const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editPb, setEditPb] = useState<Playbook | null>(null);
+  const [instantiatePb, setInstantiatePb] = useState<Playbook | null>(null);
 
   async function load() {
     setLoading(true);
@@ -85,6 +88,33 @@ export default function PlaybooksPage() {
     }
   }
 
+  async function handleSeed() {
+    try {
+      const res = await seedPlaybooks();
+      alert(`Seeded: ${res.created} new, ${res.skipped} already existed.`);
+      load();
+    } catch (err) {
+      alert("Seed failed");
+    }
+  }
+
+  async function handleInstantiate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!instantiatePb) return;
+    const form = new FormData(e.currentTarget);
+    try {
+      const crisis = await instantiatePlaybook(instantiatePb.id, {
+        title: String(form.get("title")),
+        description: String(form.get("description") || ""),
+        severity: String(form.get("severity") || "medium"),
+      });
+      setInstantiatePb(null);
+      router.push(`/crisis/${crisis.id}`);
+    } catch (err) {
+      alert("Instantiate failed");
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!confirm("Delete this playbook?")) return;
     try {
@@ -104,6 +134,7 @@ export default function PlaybooksPage() {
         </div>
         <div className="flex gap-3">
           <Link href="/dashboard"><Button variant="outline">Dashboard</Button></Link>
+          <Button variant="outline" onClick={handleSeed}>Seed Templates</Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <Button onClick={() => setOpen(true)}>Create Playbook</Button>
             <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
@@ -133,6 +164,7 @@ export default function PlaybooksPage() {
                       </div>
                       <div className="flex gap-2">
                         <Badge variant="outline">{pb.category.replace("_", " ")}</Badge>
+                        <Button size="sm" onClick={() => setInstantiatePb(pb)}>Use Template</Button>
                         <Button size="sm" variant="outline" onClick={() => setEditPb(pb)}>Edit</Button>
                         <Button size="sm" variant="destructive" onClick={() => handleDelete(pb.id)}>Delete</Button>
                       </div>
@@ -158,6 +190,37 @@ export default function PlaybooksPage() {
           <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Edit Playbook</DialogTitle></DialogHeader>
             <PlaybookForm onSubmit={handleEdit} initial={editPb} />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {instantiatePb && (
+        <Dialog open={!!instantiatePb} onOpenChange={(v) => { if (!v) setInstantiatePb(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader><DialogTitle>Declare crisis from "{instantiatePb.name}"</DialogTitle></DialogHeader>
+            <form onSubmit={handleInstantiate} className="space-y-4">
+              <div>
+                <Label>Crisis Title</Label>
+                <Input name="title" required placeholder="e.g. Q3 Payments Outage" />
+              </div>
+              <div>
+                <Label>Description (optional)</Label>
+                <Input name="description" placeholder="Defaults to template description" />
+              </div>
+              <div>
+                <Label>Severity</Label>
+                <Select name="severity" defaultValue="high">
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </Select>
+              </div>
+              <p className="text-xs text-gray-500">
+                A new crisis will be created with {instantiatePb.steps.length} action items from this template.
+              </p>
+              <Button type="submit" className="w-full">Declare Crisis</Button>
+            </form>
           </DialogContent>
         </Dialog>
       )}

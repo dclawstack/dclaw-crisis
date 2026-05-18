@@ -35,9 +35,9 @@ Before implementing any v1.2 feature, verify:
 **Description:** Fix all misaligned ports, stale configs, and placeholder text across the codebase.
 - [x] Backend: `core/config.py` → `app_name="DClaw Crisis"`, `database_url` → `dclaw_crisis`
 - [x] Backend: `api/main.py` → title/version, wire v1 routers
-- [x] Frontend: `package.json` dev port → `3061`
+- [x] Frontend: `package.json` dev port → `3079`
 - [x] Frontend: `layout.tsx` → correct title/description
-- [x] Infra: `docker-compose.yml` → backend `8061`, frontend `3061`, postgres `5437:5432`
+- [x] Infra: `docker-compose.yml` → backend `18149`, frontend `3079`, postgres `5437:5432`
 - [x] Infra: `AGENTS.md`/README port registry → `dclaw-crisis` entry
 - [x] Docs: Rewrite `PRODUCT-SPEC.md` with Crisis domain model
 

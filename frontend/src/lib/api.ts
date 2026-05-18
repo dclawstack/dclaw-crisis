@@ -212,4 +212,58 @@ export async function deletePlaybook(id: string) {
   return fetchJson<void>(`/api/v1/playbooks/${id}`, { method: "DELETE" });
 }
 
+// Playbook templating
+export async function seedPlaybooks() {
+  return fetchJson<{ created: number; skipped: number }>("/api/v1/playbooks/seed", { method: "POST" });
+}
+
+export async function instantiatePlaybook(id: string, payload: { title: string; description?: string; severity?: string }) {
+  return fetchJson<Crisis>(`/api/v1/playbooks/${id}/instantiate`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// AI Copilot
+export interface CopilotChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export async function copilotChat(messages: CopilotChatMessage[], focusedCrisisId?: string) {
+  return fetchJson<{ reply: string }>("/api/v1/copilot/chat", {
+    method: "POST",
+    body: JSON.stringify({ messages, focused_crisis_id: focusedCrisisId ?? null }),
+  });
+}
+
+export async function summarizeCrisis(id: string) {
+  return fetchJson<{ summary: string }>(`/api/v1/crisis/${id}/summarize`, { method: "POST" });
+}
+
+export interface NextAction {
+  title: string;
+  description: string;
+  priority: string;
+  rationale: string;
+  suggested_assignee_role: string;
+}
+
+export async function getNextAction(id: string) {
+  return fetchJson<NextAction>(`/api/v1/crisis/${id}/next-action`);
+}
+
+export async function draftCommunication(payload: {
+  crisis_id: string;
+  comm_type?: string;
+  channel?: string;
+  audience?: string;
+  extra_context?: string;
+}) {
+  return fetchJson<{ draft: string; comm_type: string; channel: string }>(
+    "/api/v1/communications/draft",
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
 export { ApiError };

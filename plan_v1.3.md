@@ -188,9 +188,9 @@ GET    /api/v1/dashboard           → Dashboard stats (active crises, open acti
 **Description:** Fix all misaligned ports, stale configs, and placeholder text across the codebase.
 - **Backend:** Update `core/config.py` → `app_name="DClaw Crisis"`, `database_url` → `dclaw_crisis`
 - **Backend:** Update `api/main.py` → title/version
-- **Frontend:** Update `package.json` dev port → `3061`
+- **Frontend:** Update `package.json` dev port → `3079`
 - **Frontend:** Update `layout.tsx` → correct title/description
-- **Infra:** Update `docker-compose.yml` → backend `8061`, frontend `3061`
+- **Infra:** Update `docker-compose.yml` → backend `18149`, frontend `3079`
 - **Infra:** Update `AGENTS.md`/README port registry → add `dclaw-crisis` entry
 - **Docs:** Rewrite `PRODUCT-SPEC.md` with Crisis domain model
 
@@ -378,8 +378,8 @@ GET    /api/v1/dashboard           → Dashboard stats (active crises, open acti
 | App Name | DClaw Crisis |
 | Domain | Crisis & Incident Management |
 | Target User | Operations, Legal, PR, HR, Security teams |
-| Backend Port | 8061 |
-| Frontend Port | 3061 |
+| Backend Port | 18149 |
+| Frontend Port | 3079 |
 | Database | dclaw_crisis |
 | Base API Path | /api/v1 |
 | YC Thesis | AI-native Crisis Command Center for non-technical teams |
