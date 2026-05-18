@@ -7,8 +7,8 @@
 
 **DClaw Crisis** is a vertical SaaS application built on the DClaw Stack.
 
-- **Backend Port:** `8061` (FastAPI)
-- **Frontend Port:** `3061` (Next.js)
+- **Backend Port:** `18149` (FastAPI)
+- **Frontend Port:** `3079` (Next.js)
 - **Database:** `dclaw_crisis` (PostgreSQL)
 - **Base API Path:** `/api/v1`
 
@@ -35,7 +35,7 @@ These are non-negotiable. If an agent suggests changing them, reject it.
 
 ### Docker
 - **Backend:** `python:3.11-slim`, non-root `appuser`, healthcheck with `python urllib.request.urlopen()`
-- **Frontend:** `node:20-alpine`, port `3061`
+- **Frontend:** `node:20-alpine`, port `3079`
 - **Compose:** container port MUST match `EXPOSE`/`ENV PORT`
 
 ## Directory Structure
@@ -182,3 +182,4 @@ Available components:
 | dclaw-vendor | 8106 | 3019 | dclaw_vendor |
 | dclaw-doc | 8107 | 3020 | dclaw_doc |
 | dclaw-calendar | 8108 | 3021 | dclaw_calendar |
+| dclaw-crisis | 18149 | 3079 | dclaw_crisis |

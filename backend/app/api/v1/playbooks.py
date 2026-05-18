@@ -1,10 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.models.action_item import ActionItem
+from app.models.crisis import Crisis
 from app.models.playbook import Playbook
 from app.schemas.playbook import PlaybookCreate, PlaybookUpdate, PlaybookResponse
+from app.schemas.crisis import CrisisResponse
 from app.repositories.playbook_repo import PlaybookRepository
+from app.repositories.crisis_repo import CrisisRepository
+from app.services.playbook_seed import seed_playbooks
 
 router = APIRouter()
 
@@ -56,3 +62,55 @@ async def delete_playbook(pb_id: str, db: AsyncSession = Depends(get_db)):
     if not pb:
         raise HTTPException(status_code=404, detail="Playbook not found")
     await repo.delete(pb)
+
+
+class SeedResponse(BaseModel):
+    created: int
+    skipped: int
+
+
+@router.post("/seed", response_model=SeedResponse)
+async def seed_endpoint(db: AsyncSession = Depends(get_db)):
+    """Seed the standard response-plan templates (idempotent)."""
+    counts = await seed_playbooks(db)
+    return SeedResponse(**counts)
+
+
+class InstantiateRequest(BaseModel):
+    title: str
+    description: str | None = None
+    severity: str = "medium"
+
+
+@router.post("/{pb_id}/instantiate", response_model=CrisisResponse, status_code=201)
+async def instantiate_playbook(
+    pb_id: str, payload: InstantiateRequest, db: AsyncSession = Depends(get_db)
+):
+    """Create a Crisis from a Playbook template, populating action items from steps."""
+    pb_repo = PlaybookRepository(db)
+    pb = await pb_repo.get_by_id(pb_id)
+    if not pb:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+
+    crisis_repo = CrisisRepository(db)
+    crisis = Crisis(
+        title=payload.title,
+        description=payload.description or pb.description,
+        severity=payload.severity,
+        status="responding",
+        category=pb.category,
+    )
+    crisis = await crisis_repo.create(crisis)
+
+    for step in sorted(pb.steps or [], key=lambda s: s.get("order", 0)):
+        action = ActionItem(
+            crisis_id=crisis.id,
+            title=step.get("title", "Untitled step"),
+            description=step.get("description"),
+            status="pending",
+            priority="medium",
+        )
+        db.add(action)
+    await db.commit()
+    await db.refresh(crisis)
+    return crisis

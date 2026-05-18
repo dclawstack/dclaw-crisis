@@ -1,0 +1,41 @@
+{
+  "app_id": "crisis",
+  "name": "DClaw Crisis",
+  "tagline": "Crisis response",
+  "category": "Operations",
+  "color": "#EC4899",
+  "phase": "Future",
+  "maturity_tier": "tier-2-partial",
+  "version": "1.2.0",
+  "ports": {
+    "frontend": 3079,
+    "backend": 18149
+  },
+  "database": "dclaw_crisis",
+  "api_base": "/api/v1",
+  "health_endpoint": "/health",
+  "routes": [
+    { "path": "/", "label": "Landing" },
+    { "path": "/dashboard", "label": "Command Center" },
+    { "path": "/crisis", "label": "Crises" },
+    { "path": "/team", "label": "Team" },
+    { "path": "/action-items", "label": "Action Items" },
+    { "path": "/playbooks", "label": "Playbooks" }
+  ],
+  "ai_copilot": {
+    "enabled": true,
+    "endpoint": "/api/v1/copilot/chat",
+    "providers": ["openrouter", "ollama"]
+  },
+  "features": {
+    "p0": ["ai_crisis_copilot", "command_center", "response_planning"],
+    "p1": ["communication_management", "stakeholder_mapping"],
+    "p2": []
+  },
+  "stack": {
+    "frontend": "Next.js 14+",
+    "backend": "FastAPI",
+    "database": "PostgreSQL 16",
+    "auth": "Logto"
+  }
+}

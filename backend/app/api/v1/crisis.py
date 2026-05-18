@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Literal
 
@@ -6,6 +7,9 @@ from app.core.database import get_db
 from app.models.crisis import Crisis
 from app.schemas.crisis import CrisisCreate, CrisisUpdate, CrisisResponse
 from app.repositories.crisis_repo import CrisisRepository
+from app.services.ai_summarizer import summarize_crisis
+from app.services.ai_recommender import recommend_next_action
+from app.services.llm import LLMUnavailableError
 
 router = APIRouter()
 
@@ -74,3 +78,43 @@ async def delete_crisis(crisis_id: str, db: AsyncSession = Depends(get_db)):
     if not crisis:
         raise HTTPException(status_code=404, detail="Crisis not found")
     await repo.delete(crisis)
+
+
+class SummaryResponse(BaseModel):
+    summary: str
+
+
+class NextActionResponse(BaseModel):
+    title: str
+    description: str
+    priority: str
+    rationale: str
+    suggested_assignee_role: str
+
+
+@router.post("/{crisis_id}/summarize", response_model=SummaryResponse)
+async def summarize(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    repo = CrisisRepository(db)
+    crisis = await repo.get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        text = await summarize_crisis(crisis)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return SummaryResponse(summary=text)
+
+
+@router.get("/{crisis_id}/next-action", response_model=NextActionResponse)
+async def next_action(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    repo = CrisisRepository(db)
+    crisis = await repo.get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        data = await recommend_next_action(crisis)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
+    return NextActionResponse(**data)
