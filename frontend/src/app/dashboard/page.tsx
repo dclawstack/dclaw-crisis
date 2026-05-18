@@ -123,6 +123,7 @@ export default function Dashboard() {
             <RefreshCw className="h-3 w-3" />
             {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}
           </div>
+          <Link href="/signals"><Button variant="outline">Signals</Button></Link>
           <Link href="/crisis"><Button variant="outline">Crises</Button></Link>
           <Link href="/team"><Button variant="outline">Team</Button></Link>
           <Link href="/action-items"><Button variant="outline">Action Items</Button></Link>

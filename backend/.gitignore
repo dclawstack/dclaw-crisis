@@ -39,6 +39,6 @@ venv/
 .coverage
 htmlcov/
 
-# Alembic
-alembic/versions/*.py
-!alembic/versions/.gitkeep
+# Alembic — migrations MUST be checked in for production deployments
+# (only ignore the cache, not the version files)
+alembic/versions/__pycache__/
