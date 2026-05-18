@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDashboard, listCrises, listActionItems, listTeamMembers, getNextAction, type Crisis, type ActionItem, type TeamMember, type NextAction, ApiError } from "@/lib/api";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { SituationMap } from "@/components/SituationMap";
 
 const ACTIVE_STATUSES = new Set(["detected", "assessing", "responding"]);
 const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -49,8 +50,10 @@ export default function Dashboard() {
     total_crises: number;
   } | null>(null);
   const [crises, setCrises] = useState<Crisis[]>([]);
+  const [allCrises, setAllCrises] = useState<Crisis[]>([]);
   const [activeCrises, setActiveCrises] = useState<Crisis[]>([]);
   const [actions, setActions] = useState<ActionItem[]>([]);
+  const [allActions, setAllActions] = useState<ActionItem[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -69,7 +72,9 @@ export default function Dashboard() {
       const active = c.filter((x) => ACTIVE_STATUSES.has(x.status))
         .sort((x, y) => (SEVERITY_RANK[x.severity] ?? 9) - (SEVERITY_RANK[y.severity] ?? 9));
       setActiveCrises(active);
+      setAllCrises(c);
       setCrises(c.slice(0, 5));
+      setAllActions(a);
       setActions(a.slice(0, 5));
       setTeam(t);
       setLastUpdated(new Date());
@@ -151,6 +156,9 @@ export default function Dashboard() {
             <CardContent><div className="text-3xl font-bold">{stats?.avg_resolution_hours ?? 0}</div></CardContent>
           </Card>
         </div>
+
+        {/* Situation Map */}
+        <SituationMap crises={allCrises} actions={allActions} />
 
         {/* AI Decision Support + Resource Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

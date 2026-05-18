@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, summarizeCrisis, getNextAction, draftCommunication, type Crisis, type ActionItem, type Communication, type NextAction, ApiError } from "@/lib/api";
-import { Sparkles, Loader2 } from "lucide-react";
+import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, summarizeCrisis, getNextAction, draftCommunication, generatePostMortem, suggestPlaybookUpdates, type Crisis, type ActionItem, type Communication, type NextAction, type PostMortem, type PlaybookAdvice, ApiError } from "@/lib/api";
+import { Sparkles, Loader2, BookOpen, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,10 @@ export default function CrisisDetailPage() {
   const [draftLoading, setDraftLoading] = useState(false);
   const [draftedMessage, setDraftedMessage] = useState<string>("");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [postMortem, setPostMortem] = useState<PostMortem | null>(null);
+  const [postMortemLoading, setPostMortemLoading] = useState(false);
+  const [advice, setAdvice] = useState<PlaybookAdvice | null>(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -150,6 +154,32 @@ export default function CrisisDetailPage() {
       load();
     } catch {
       alert("Failed to create action item");
+    }
+  }
+
+  async function handlePostMortem() {
+    setPostMortemLoading(true);
+    setAiError(null);
+    try {
+      const res = await generatePostMortem(id);
+      setPostMortem(res);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Post-mortem failed");
+    } finally {
+      setPostMortemLoading(false);
+    }
+  }
+
+  async function handleSuggestPlaybook() {
+    setAdviceLoading(true);
+    setAiError(null);
+    try {
+      const res = await suggestPlaybookUpdates(id);
+      setAdvice(res);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Playbook suggestion failed");
+    } finally {
+      setAdviceLoading(false);
     }
   }
 
@@ -288,7 +318,20 @@ export default function CrisisDetailPage() {
                   {nextActionLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : null}
                   Recommend next action
                 </Button>
+                <Button onClick={handlePostMortem} size="sm" variant="outline" disabled={postMortemLoading}>
+                  {postMortemLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <ScrollText className="h-3 w-3 mr-2" />}
+                  AI Post-Mortem
+                </Button>
+                <Button onClick={handleSuggestPlaybook} size="sm" variant="outline" disabled={adviceLoading}>
+                  {adviceLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <BookOpen className="h-3 w-3 mr-2" />}
+                  Suggest playbook updates
+                </Button>
               </div>
+              {(crisis.status !== "resolved" && crisis.status !== "contained" && crisis.status !== "post_mortem") && (
+                <p className="text-[11px] text-gray-500 italic">
+                  Post-mortem and playbook suggestions work best on resolved or contained crises.
+                </p>
+              )}
               {aiError && (
                 <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded p-2">{aiError}</div>
               )}
@@ -308,6 +351,72 @@ export default function CrisisDetailPage() {
                   </div>
                   <div className="text-xs italic text-slate-600">Why: {nextAction.rationale}</div>
                   <Button onClick={handleCreateRecommendedAction} size="sm" className="w-full">Create this action item</Button>
+                </div>
+              )}
+              {postMortem && (
+                <div className="border border-pink-200 bg-pink-50 rounded p-3 space-y-2 text-sm">
+                  <div className="text-xs font-semibold text-pink-700 uppercase tracking-wide">AI Post-Mortem {postMortem.is_speculative && <span className="text-amber-700 normal-case font-normal">· speculative</span>}</div>
+                  <div>
+                    <div className="text-xs uppercase font-medium text-slate-500 mt-1">Timeline</div>
+                    <div className="text-slate-800">{postMortem.timeline_summary}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs uppercase font-medium text-slate-500 mt-2">Root cause</div>
+                    <div className="text-slate-800">{postMortem.root_cause}</div>
+                  </div>
+                  {postMortem.what_went_well.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase font-medium text-emerald-700 mt-2">What went well</div>
+                      <ul className="list-disc pl-5 text-slate-800 space-y-0.5">
+                        {postMortem.what_went_well.map((x, i) => <li key={i}>{x}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {postMortem.what_went_poorly.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase font-medium text-red-700 mt-2">What went poorly</div>
+                      <ul className="list-disc pl-5 text-slate-800 space-y-0.5">
+                        {postMortem.what_went_poorly.map((x, i) => <li key={i}>{x}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {postMortem.lessons_learned.length > 0 && (
+                    <div>
+                      <div className="text-xs uppercase font-medium text-slate-500 mt-2">Lessons learned</div>
+                      <ul className="list-disc pl-5 text-slate-800 space-y-0.5">
+                        {postMortem.lessons_learned.map((x, i) => <li key={i}>{x}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              {advice && (
+                <div className="border border-pink-200 bg-pink-50 rounded p-3 space-y-2 text-sm">
+                  <div className="text-xs font-semibold text-pink-700 uppercase tracking-wide">Suggested Playbook Updates</div>
+                  {advice.playbook_name ? (
+                    <div className="text-xs text-slate-600">
+                      Target playbook: <span className="font-medium">{advice.playbook_name}</span>
+                    </div>
+                  ) : null}
+                  {advice.summary && <div className="text-slate-800">{advice.summary}</div>}
+                  {advice.suggested_changes.length === 0 ? (
+                    <div className="text-xs text-slate-500 italic">No changes suggested.</div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {advice.suggested_changes.map((c, i) => (
+                        <li key={i} className="bg-white rounded border border-pink-100 p-2">
+                          <div className="text-[10px] uppercase tracking-wide text-pink-700 font-semibold">
+                            {c.kind.replace("_", " ")}
+                            {c.step_order != null && <span className="text-slate-500"> · step {c.step_order}</span>}
+                          </div>
+                          {c.new_title && <div className="font-medium">{c.new_title}</div>}
+                          {c.new_description && <div className="text-slate-700">{c.new_description}</div>}
+                          {c.new_role && <div className="text-xs text-slate-600">Role: {c.new_role}</div>}
+                          <div className="text-xs italic text-slate-600 mt-1">Why: {c.rationale}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
             </CardContent>

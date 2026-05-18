@@ -102,14 +102,18 @@ export default function PlaybooksPage() {
     e.preventDefault();
     if (!instantiatePb) return;
     const form = new FormData(e.currentTarget);
+    const incidentContext = String(form.get("incident_context") || "").trim();
+    const aiCustomize = !!incidentContext;
     try {
-      const crisis = await instantiatePlaybook(instantiatePb.id, {
+      const res = await instantiatePlaybook(instantiatePb.id, {
         title: String(form.get("title")),
         description: String(form.get("description") || ""),
         severity: String(form.get("severity") || "medium"),
+        incident_context: incidentContext || undefined,
+        ai_customize: aiCustomize,
       });
       setInstantiatePb(null);
-      router.push(`/crisis/${crisis.id}`);
+      router.push(`/crisis/${res.crisis.id}`);
     } catch (err) {
       alert("Instantiate failed");
     }
@@ -215,6 +219,18 @@ export default function PlaybooksPage() {
                   <option value="medium">Medium</option>
                   <option value="low">Low</option>
                 </Select>
+              </div>
+              <div>
+                <Label>Incident context (optional — enables AI customization)</Label>
+                <textarea
+                  name="incident_context"
+                  rows={3}
+                  placeholder="Describe the specific incident — affected systems, parties involved, timing, regulatory context. The AI will tailor each playbook step to match."
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500"
+                />
+                <p className="text-xs text-pink-700 mt-1">
+                  ✨ Leave blank for generic steps. With context, AI rewrites each step for this incident.
+                </p>
               </div>
               <p className="text-xs text-gray-500">
                 A new crisis will be created with {instantiatePb.steps.length} action items from this template.

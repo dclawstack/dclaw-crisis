@@ -267,8 +267,22 @@ export async function seedPlaybooks() {
   return fetchJson<{ created: number; skipped: number }>("/api/v1/playbooks/seed", { method: "POST" });
 }
 
-export async function instantiatePlaybook(id: string, payload: { title: string; description?: string; severity?: string }) {
-  return fetchJson<Crisis>(`/api/v1/playbooks/${id}/instantiate`, {
+export interface InstantiateResult {
+  crisis: Crisis;
+  ai_customized: boolean;
+}
+
+export async function instantiatePlaybook(
+  id: string,
+  payload: {
+    title: string;
+    description?: string;
+    severity?: string;
+    incident_context?: string;
+    ai_customize?: boolean;
+  },
+) {
+  return fetchJson<InstantiateResult>(`/api/v1/playbooks/${id}/instantiate`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -314,6 +328,41 @@ export async function draftCommunication(payload: {
     "/api/v1/communications/draft",
     { method: "POST", body: JSON.stringify(payload) },
   );
+}
+
+export interface PostMortem {
+  timeline_summary: string;
+  what_went_well: string[];
+  what_went_poorly: string[];
+  root_cause: string;
+  lessons_learned: string[];
+  is_speculative: boolean;
+}
+
+export async function generatePostMortem(crisisId: string) {
+  return fetchJson<PostMortem>(`/api/v1/crisis/${crisisId}/post-mortem`, { method: "POST" });
+}
+
+export interface PlaybookChange {
+  kind: "add_step" | "rewrite_step" | "remove_step" | "change_role";
+  step_order: number | null;
+  new_title: string | null;
+  new_description: string | null;
+  new_role: string | null;
+  rationale: string;
+}
+
+export interface PlaybookAdvice {
+  playbook_id: string | null;
+  playbook_name: string | null;
+  summary: string;
+  suggested_changes: PlaybookChange[];
+}
+
+export async function suggestPlaybookUpdates(crisisId: string) {
+  return fetchJson<PlaybookAdvice>(`/api/v1/crisis/${crisisId}/suggest-playbook-updates`, {
+    method: "POST",
+  });
 }
 
 export { ApiError };
