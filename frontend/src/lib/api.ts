@@ -365,4 +365,123 @@ export async function suggestPlaybookUpdates(crisisId: string) {
   });
 }
 
+// Stakeholders
+export type StakeholderType =
+  | "internal" | "customer" | "regulator" | "media" | "investor"
+  | "vendor" | "partner" | "board" | "other";
+export type StakeholderImportance = "critical" | "high" | "medium" | "low";
+
+export interface Stakeholder {
+  id: string;
+  name: string;
+  type: StakeholderType;
+  organization: string | null;
+  importance: StakeholderImportance;
+  email: string | null;
+  phone: string | null;
+  tags: string[];
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listStakeholders(params?: { type?: StakeholderType; active_only?: boolean }) {
+  const query = new URLSearchParams();
+  if (params?.type) query.set("type", params.type);
+  if (params?.active_only) query.set("active_only", "true");
+  return fetchJson<Stakeholder[]>(`/api/v1/stakeholders/?${query.toString()}`);
+}
+
+export async function createStakeholder(payload: Omit<Stakeholder, "id" | "created_at" | "updated_at">) {
+  return fetchJson<Stakeholder>("/api/v1/stakeholders/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function updateStakeholder(id: string, payload: Partial<Omit<Stakeholder, "id" | "created_at" | "updated_at">>) {
+  return fetchJson<Stakeholder>(`/api/v1/stakeholders/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function deleteStakeholder(id: string) {
+  return fetchJson<void>(`/api/v1/stakeholders/${id}`, { method: "DELETE" });
+}
+
+// Resources
+export type ResourceType =
+  | "war_room" | "comm_channel" | "vendor_contact" | "equipment"
+  | "budget_pool" | "on_call_roster" | "external_service" | "other";
+export type ResourceStatus = "available" | "reserved" | "in_use" | "unavailable";
+
+export interface Resource {
+  id: string;
+  name: string;
+  resource_type: ResourceType;
+  status: ResourceStatus;
+  capacity: string | null;
+  location: string | null;
+  attributes: Record<string, unknown>;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listResources(params?: { status?: ResourceStatus; resource_type?: ResourceType }) {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.resource_type) query.set("resource_type", params.resource_type);
+  return fetchJson<Resource[]>(`/api/v1/resources/?${query.toString()}`);
+}
+
+export async function createResource(payload: Omit<Resource, "id" | "created_at" | "updated_at">) {
+  return fetchJson<Resource>("/api/v1/resources/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function updateResource(id: string, payload: Partial<Omit<Resource, "id" | "created_at" | "updated_at">>) {
+  return fetchJson<Resource>(`/api/v1/resources/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function deleteResource(id: string) {
+  return fetchJson<void>(`/api/v1/resources/${id}`, { method: "DELETE" });
+}
+
+// Crisis-level AI tools for stakeholders/resources
+export interface StakeholderPriority {
+  stakeholder_id: string;
+  stakeholder_name: string;
+  stakeholder_type: string;
+  organization: string | null;
+  urgency: "immediate" | "within_4h" | "within_24h" | "post_resolution";
+  channel: "phone" | "email" | "in_person" | "press_release" | "regulator_filing" | "other";
+  talking_points: string[];
+  rationale: string;
+}
+
+export interface StakeholderPriorities {
+  priorities: StakeholderPriority[];
+  notes: string;
+}
+
+export async function getStakeholderPriorities(crisisId: string) {
+  return fetchJson<StakeholderPriorities>(`/api/v1/crisis/${crisisId}/stakeholder-priorities`);
+}
+
+export interface ResourceRecommendation {
+  resource_id: string;
+  resource_name: string;
+  resource_type: string;
+  current_status: string;
+  fit_score: number;
+  deploy_now: boolean;
+  reason: string;
+  conflict_note: string | null;
+}
+
+export interface ResourceRecommendations {
+  recommendations: ResourceRecommendation[];
+  gaps: string[];
+}
+
+export async function getResourceRecommendations(crisisId: string) {
+  return fetchJson<ResourceRecommendations>(`/api/v1/crisis/${crisisId}/recommend-resources`);
+}
+
 export { ApiError };

@@ -131,6 +131,8 @@ export default function Dashboard() {
           <Link href="/signals"><Button variant="outline">Signals</Button></Link>
           <Link href="/crisis"><Button variant="outline">Crises</Button></Link>
           <Link href="/team"><Button variant="outline">Team</Button></Link>
+          <Link href="/stakeholders"><Button variant="outline">Stakeholders</Button></Link>
+          <Link href="/resources"><Button variant="outline">Resources</Button></Link>
           <Link href="/action-items"><Button variant="outline">Action Items</Button></Link>
           <Link href="/playbooks"><Button variant="outline">Playbooks</Button></Link>
         </div>

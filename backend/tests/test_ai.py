@@ -319,3 +319,98 @@ async def test_instantiate_ai_customize_without_context_falls_back(client, fake_
     crisis_id = res.json()["crisis"]["id"]
     actions = (await client.get(f"/api/v1/action-items/?crisis_id={crisis_id}")).json()
     assert actions[0]["title"] == "Generic only"
+
+
+@pytest.mark.asyncio
+async def test_stakeholder_priorities_endpoint(client, monkeypatch):
+    s1 = (await client.post("/api/v1/stakeholders/", json={"name": "Acme", "type": "customer", "importance": "critical"})).json()
+    s2 = (await client.post("/api/v1/stakeholders/", json={"name": "Bank Co", "type": "investor", "importance": "high"})).json()
+
+    async def fake_complete_json(system, user, *, temperature=0.2, max_tokens=2000):
+        return {
+            "priorities": [
+                {"stakeholder_id": s2["id"], "urgency": "within_24h", "channel": "email",
+                 "talking_points": ["briefing"], "rationale": "Investor."},
+                {"stakeholder_id": s1["id"], "urgency": "immediate", "channel": "phone",
+                 "talking_points": ["acknowledged", "ETA"], "rationale": "Top customer."},
+                {"stakeholder_id": "missing", "urgency": "immediate"},
+                {"stakeholder_id": s1["id"], "urgency": "not_required"},
+            ],
+            "notes": "Two stakeholders need contact within 24 hours.",
+        }
+    from app.services import ai_stakeholder_prioritizer
+    monkeypatch.setattr(ai_stakeholder_prioritizer, "complete_json", fake_complete_json)
+
+    crisis_id = await _make_crisis(client)
+    res = await client.get(f"/api/v1/crisis/{crisis_id}/stakeholder-priorities")
+    assert res.status_code == 200
+    body = res.json()
+    # filtered: invalid id + not_required removed
+    assert len(body["priorities"]) == 2
+    # sorted by urgency: immediate first
+    assert body["priorities"][0]["urgency"] == "immediate"
+    assert body["priorities"][0]["stakeholder_name"] == "Acme"
+    assert body["priorities"][1]["urgency"] == "within_24h"
+    assert "Two stakeholders" in body["notes"]
+
+
+@pytest.mark.asyncio
+async def test_stakeholder_priorities_empty_roster(client, monkeypatch):
+    async def fake_complete_json(*args, **kwargs):
+        raise AssertionError("LLM should not be called when roster is empty")
+    from app.services import ai_stakeholder_prioritizer
+    monkeypatch.setattr(ai_stakeholder_prioritizer, "complete_json", fake_complete_json)
+
+    crisis_id = await _make_crisis(client)
+    res = await client.get(f"/api/v1/crisis/{crisis_id}/stakeholder-priorities")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["priorities"] == []
+    assert "No active stakeholders" in body["notes"]
+
+
+@pytest.mark.asyncio
+async def test_resource_recommendations_endpoint(client, monkeypatch):
+    r1 = (await client.post("/api/v1/resources/", json={"name": "War Room", "resource_type": "war_room", "status": "available"})).json()
+    r2 = (await client.post("/api/v1/resources/", json={"name": "Backup PSA", "resource_type": "vendor_contact", "status": "in_use"})).json()
+
+    async def fake_complete_json(system, user, *, temperature=0.2, max_tokens=1800):
+        return {
+            "recommendations": [
+                {"resource_id": r2["id"], "fit_score": 0.55, "deploy_now": False,
+                 "reason": "Useful backup.", "conflict_note": "Currently in use on incident #42"},
+                {"resource_id": r1["id"], "fit_score": 0.9, "deploy_now": True,
+                 "reason": "Need a war room.", "conflict_note": None},
+                {"resource_id": r1["id"], "fit_score": 0.1, "deploy_now": False, "reason": "junk"},
+                {"resource_id": "missing", "fit_score": 0.99},
+            ],
+            "gaps": ["No regulatory hold tool registered."],
+        }
+    from app.services import ai_resource_matcher
+    monkeypatch.setattr(ai_resource_matcher, "complete_json", fake_complete_json)
+
+    crisis_id = await _make_crisis(client)
+    res = await client.get(f"/api/v1/crisis/{crisis_id}/recommend-resources")
+    assert res.status_code == 200
+    body = res.json()
+    # filtered: below-threshold + missing removed
+    assert len(body["recommendations"]) == 2
+    # sorted by fit_score descending
+    assert body["recommendations"][0]["fit_score"] == 0.9
+    assert body["recommendations"][1]["conflict_note"] == "Currently in use on incident #42"
+    assert "No regulatory hold" in body["gaps"][0]
+
+
+@pytest.mark.asyncio
+async def test_resource_recommendations_empty_inventory(client, monkeypatch):
+    async def fake_complete_json(*args, **kwargs):
+        raise AssertionError("LLM should not be called when inventory is empty")
+    from app.services import ai_resource_matcher
+    monkeypatch.setattr(ai_resource_matcher, "complete_json", fake_complete_json)
+
+    crisis_id = await _make_crisis(client)
+    res = await client.get(f"/api/v1/crisis/{crisis_id}/recommend-resources")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["recommendations"] == []
+    assert "No resources registered" in body["gaps"][0]
