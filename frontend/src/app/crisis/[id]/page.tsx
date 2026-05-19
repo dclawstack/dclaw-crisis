@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, summarizeCrisis, getNextAction, draftCommunication, generatePostMortem, suggestPlaybookUpdates, getStakeholderPriorities, getResourceRecommendations, type Crisis, type ActionItem, type Communication, type NextAction, type PostMortem, type PlaybookAdvice, type StakeholderPriorities, type ResourceRecommendations, ApiError } from "@/lib/api";
-import { Sparkles, Loader2, BookOpen, ScrollText, Users, Boxes } from "lucide-react";
+import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, summarizeCrisis, getNextAction, draftCommunication, generatePostMortem, suggestPlaybookUpdates, getStakeholderPriorities, getResourceRecommendations, sendCommunication, analyzeCommunicationSentiment, getSentimentTrend, type Crisis, type ActionItem, type Communication, type NextAction, type PostMortem, type PlaybookAdvice, type StakeholderPriorities, type ResourceRecommendations, type SentimentTrend, type Sentiment, ApiError } from "@/lib/api";
+import { Sparkles, Loader2, BookOpen, ScrollText, Users, Boxes, Send, TrendingUp, TrendingDown, MinusSquare, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,15 @@ function severityColor(sev: string) {
     case "high": return "bg-orange-500 text-white";
     case "medium": return "bg-yellow-500 text-black";
     default: return "bg-blue-500 text-white";
+  }
+}
+
+function sentimentColor(s: Sentiment) {
+  switch (s) {
+    case "positive": return "bg-emerald-500 text-white";
+    case "negative": return "bg-red-600 text-white";
+    case "mixed": return "bg-amber-500 text-white";
+    default: return "bg-slate-500 text-white";
   }
 }
 
@@ -56,22 +65,40 @@ export default function CrisisDetailPage() {
   const [stakeholdersLoading, setStakeholdersLoading] = useState(false);
   const [resourceRecs, setResourceRecs] = useState<ResourceRecommendations | null>(null);
   const [resourcesLoading, setResourcesLoading] = useState(false);
+  const [commAction, setCommAction] = useState<{ id: string; action: string } | null>(null);
+  const [trend, setTrend] = useState<SentimentTrend | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
-      const [c, a, co] = await Promise.all([
+      const [c, a, co, t] = await Promise.all([
         getCrisis(id),
         listActionItems({ crisis_id: id }),
         listCommunications({ crisis_id: id }),
+        getSentimentTrend(id).catch(() => null),
       ]);
       setCrisis(c);
       setActions(a);
       setComms(co);
+      if (t) setTrend(t);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function withCommAction(commId: string, action: string, fn: () => Promise<unknown>) {
+    setCommAction({ id: commId, action });
+    setAiError(null);
+    try {
+      await fn();
+      await load();
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : `${action} failed`);
+    } finally {
+      setCommAction(null);
     }
   }
 
@@ -332,6 +359,8 @@ export default function CrisisDetailPage() {
               <div className="text-xs text-gray-500">Detected: {new Date(crisis.detected_at || crisis.created_at).toLocaleString()}</div>
             </CardContent>
           </Card>
+
+          {trend && trend.total_communications > 0 && <SentimentTrendCard trend={trend} />}
 
           <Card>
             <CardHeader className="flex flex-row items-center gap-2">
@@ -649,16 +678,65 @@ export default function CrisisDetailPage() {
                 <p className="text-sm text-gray-400">No communications yet.</p>
               ) : (
                 <div className="space-y-3">
-                  {comms.map((c) => (
-                    <div key={c.id} className="border rounded p-3 bg-white">
-                      <div className="text-sm text-gray-800">{c.message}</div>
-                      <div className="text-xs text-gray-500 mt-2 flex gap-2">
-                        <Badge variant="outline">{c.comm_type.replace("_", " ")}</Badge>
-                        <Badge variant="outline">{c.channel}</Badge>
-                        <span>{new Date(c.created_at).toLocaleString()}</span>
+                  {comms.map((c) => {
+                    const sendBusy = commAction?.id === c.id && commAction.action === "send";
+                    const analyzeBusy = commAction?.id === c.id && commAction.action === "analyze";
+                    return (
+                      <div key={c.id} className="border rounded p-3 bg-white space-y-2">
+                        <div className="text-sm text-gray-800 whitespace-pre-wrap">{c.message}</div>
+                        <div className="text-xs text-gray-500 flex gap-2 flex-wrap items-center">
+                          <Badge variant="outline">{c.comm_type.replace("_", " ")}</Badge>
+                          <Badge variant="outline">{c.channel}</Badge>
+                          {c.delivery_status === "sent" && (
+                            <Badge className="bg-emerald-500 text-white">
+                              Sent {c.sent_at ? new Date(c.sent_at).toLocaleTimeString() : ""}
+                            </Badge>
+                          )}
+                          {c.delivery_status === "failed" && <Badge className="bg-red-600 text-white">Failed</Badge>}
+                          {c.delivery_status === "pending" && <Badge variant="outline">Draft</Badge>}
+                          {c.sentiment && <Badge className={sentimentColor(c.sentiment)}>{c.sentiment}</Badge>}
+                          {c.sentiment_score != null && (
+                            <span className="tabular-nums text-[11px] text-slate-500">
+                              {c.sentiment_score >= 0 ? "+" : ""}{c.sentiment_score.toFixed(2)}
+                            </span>
+                          )}
+                          <span className="ml-auto">{new Date(c.created_at).toLocaleString()}</span>
+                        </div>
+                        {c.predicted_reaction && (
+                          <div className="text-xs italic text-slate-600 bg-slate-50 rounded p-2">
+                            <span className="font-medium not-italic text-slate-700">Predicted reaction:</span> {c.predicted_reaction}
+                          </div>
+                        )}
+                        {c.risk_flags.length > 0 && (
+                          <div className="text-xs bg-amber-50 border border-amber-200 rounded p-2 space-y-0.5">
+                            <div className="font-medium text-amber-800 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Risk flags</div>
+                            {c.risk_flags.map((f, i) => <div key={i} className="text-amber-900">• {f}</div>)}
+                          </div>
+                        )}
+                        <div className="flex gap-2 pt-1">
+                          {c.delivery_status !== "sent" && (
+                            <Button
+                              size="sm"
+                              onClick={() => withCommAction(c.id, "send", () => sendCommunication(c.id))}
+                              disabled={!!commAction}
+                            >
+                              {sendBusy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                              {c.delivery_status === "failed" ? "Retry send" : "Send"}
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => withCommAction(c.id, "analyze", () => analyzeCommunicationSentiment(c.id))}
+                            disabled={!!commAction}
+                          >
+                            {analyzeBusy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                            {c.sentiment ? "Re-analyze" : "Analyze sentiment"}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -666,5 +744,68 @@ export default function CrisisDetailPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+function SentimentTrendCard({ trend }: { trend: SentimentTrend }) {
+  const { counts, average_score, trend_direction, analyzed_count, total_communications, points } = trend;
+  const TrendIcon = trend_direction === "improving" ? TrendingUp
+    : trend_direction === "worsening" ? TrendingDown
+    : MinusSquare;
+  const trendColor = trend_direction === "improving" ? "text-emerald-600"
+    : trend_direction === "worsening" ? "text-red-600"
+    : "text-slate-500";
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-pink-600" />
+        <CardTitle className="text-base">Sentiment Trend</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        <div className="text-xs text-slate-500">
+          {analyzed_count} of {total_communications} communications analyzed
+        </div>
+        {analyzed_count === 0 ? (
+          <p className="text-xs text-gray-400">Run "Analyze sentiment" on a communication below to start building the trend.</p>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-1 font-medium ${trendColor}`}>
+                <TrendIcon className="h-4 w-4" />
+                <span className="capitalize">{trend_direction.replace("_", " ")}</span>
+              </div>
+              {average_score != null && (
+                <span className="text-xs text-slate-600 tabular-nums">
+                  avg score {average_score >= 0 ? "+" : ""}{average_score.toFixed(2)}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-3 text-xs">
+              <span className="text-emerald-700">+{counts.positive}</span>
+              <span className="text-slate-600">·{counts.neutral}</span>
+              <span className="text-amber-700">~{counts.mixed}</span>
+              <span className="text-red-700">−{counts.negative}</span>
+            </div>
+            <div className="flex gap-0.5 items-end h-12 mt-1">
+              {points.map((p) => {
+                const height = Math.max(8, Math.abs(p.sentiment_score) * 48);
+                const isPositive = p.sentiment_score >= 0;
+                return (
+                  <div
+                    key={p.communication_id}
+                    title={`${p.sentiment} ${p.sentiment_score.toFixed(2)} · ${new Date(p.analyzed_at).toLocaleTimeString()}`}
+                    style={{ height: `${height}px` }}
+                    className={
+                      "flex-1 min-w-[3px] rounded-sm " +
+                      (isPositive ? "bg-emerald-400" : "bg-red-400")
+                    }
+                  />
+                );
+              })}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

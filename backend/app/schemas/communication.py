@@ -24,6 +24,14 @@ class CommunicationUpdate(BaseModel):
 
 class CommunicationResponse(CommunicationBase):
     id: str
+    delivery_status: Literal["pending", "queued", "sent", "failed"] = "pending"
+    sent_at: datetime | None = None
+    delivery_log: dict = {}
+    sentiment: Literal["positive", "neutral", "negative", "mixed"] | None = None
+    sentiment_score: float | None = None
+    sentiment_analyzed_at: datetime | None = None
+    predicted_reaction: str | None = None
+    risk_flags: list[str] = []
     created_at: datetime
     updated_at: datetime
 
