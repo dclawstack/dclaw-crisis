@@ -5,8 +5,8 @@
   "category": "Operations",
   "color": "#EC4899",
   "phase": "Future",
-  "maturity_tier": "tier-2-partial",
-  "version": "1.2.0",
+  "maturity_tier": "tier-3-production",
+  "version": "2.0.0",
   "ports": {
     "frontend": 3079,
     "backend": 18149
@@ -23,7 +23,10 @@
     { "path": "/stakeholders", "label": "Stakeholders" },
     { "path": "/resources", "label": "Resources" },
     { "path": "/action-items", "label": "Action Items" },
-    { "path": "/playbooks", "label": "Playbooks" }
+    { "path": "/playbooks", "label": "Playbooks" },
+    { "path": "/simulations", "label": "Simulations & Training" },
+    { "path": "/media", "label": "Media Monitoring" },
+    { "path": "/legal-holds", "label": "Legal Holds" }
   ],
   "ai_copilot": {
     "enabled": true,
@@ -33,7 +36,7 @@
   "features": {
     "p0": ["ai_crisis_copilot", "command_center", "response_planning", "crisis_detection"],
     "p1": ["communication_management", "post_crisis_review", "stakeholder_mapping", "resource_mobilization"],
-    "p2": []
+    "p2": ["simulation_training", "continuity_integration", "media_monitoring", "legal_hold"]
   },
   "stack": {
     "frontend": "Next.js 14+",

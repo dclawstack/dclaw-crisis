@@ -7,3 +7,7 @@ from app.models.playbook import Playbook, PlaybookCategory
 from app.models.signal import Signal, SignalStatus
 from app.models.stakeholder import Stakeholder, StakeholderType, StakeholderImportance
 from app.models.resource import Resource, ResourceType, ResourceStatus
+from app.models.simulation import Simulation, SimulationStatus
+from app.models.continuity_activation import ContinuityActivation, ActivationStatus
+from app.models.media_mention import MediaMention, MentionSentiment
+from app.models.legal_hold import LegalHold, LegalHoldStatus

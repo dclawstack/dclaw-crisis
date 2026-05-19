@@ -535,7 +535,7 @@ export default function LandingPage() {
                 <li><a href="#" className="hover:text-white transition-colors">About</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
                 <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">GitHub</a></li>
+                <li><a href="https://github.com/dclawstack/dclaw-crisis" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a></li>
               </ul>
             </div>
           </div>
