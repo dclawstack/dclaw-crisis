@@ -14,6 +14,7 @@ from app.services.ai_playbook_advisor import suggest_playbook_updates
 from app.services.ai_stakeholder_prioritizer import prioritize_stakeholders
 from app.services.ai_resource_matcher import match_resources
 from app.services.llm import LLMUnavailableError
+from app.repositories.communication_repo import CommunicationRepository
 
 router = APIRouter()
 
@@ -243,3 +244,90 @@ async def recommend_resources(crisis_id: str, db: AsyncSession = Depends(get_db)
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
     return ResourceRecommendationsResponse(**data)
+
+
+from datetime import datetime as _datetime  # noqa: E402
+
+
+class SentimentTrendPoint(BaseModel):
+    communication_id: str
+    sentiment: str
+    sentiment_score: float
+    analyzed_at: _datetime
+    comm_type: str
+    channel: str
+    risk_flag_count: int
+
+
+class SentimentCounts(BaseModel):
+    positive: int = 0
+    neutral: int = 0
+    negative: int = 0
+    mixed: int = 0
+
+
+class SentimentTrendResponse(BaseModel):
+    crisis_id: str
+    analyzed_count: int
+    total_communications: int
+    counts: SentimentCounts
+    average_score: float | None
+    trend_direction: str  # "improving" | "worsening" | "flat" | "insufficient_data"
+    points: list[SentimentTrendPoint]
+
+
+def _trend_direction(scores_by_time: list[float]) -> str:
+    if len(scores_by_time) < 2:
+        return "insufficient_data"
+    first_half = scores_by_time[: len(scores_by_time) // 2]
+    second_half = scores_by_time[len(scores_by_time) // 2 :]
+    if not first_half or not second_half:
+        return "insufficient_data"
+    delta = (sum(second_half) / len(second_half)) - (sum(first_half) / len(first_half))
+    if delta > 0.1:
+        return "improving"
+    if delta < -0.1:
+        return "worsening"
+    return "flat"
+
+
+@router.get("/{crisis_id}/sentiment-trend", response_model=SentimentTrendResponse)
+async def sentiment_trend(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    """Aggregated sentiment timeline across all analyzed communications for this crisis."""
+    crisis = await CrisisRepository(db).get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+
+    comm_repo = CommunicationRepository(db)
+    all_comms, _ = await comm_repo.list_by_crisis(crisis_id, limit=500, offset=0)
+    analyzed = [c for c in all_comms if c.sentiment is not None and c.sentiment_analyzed_at is not None]
+    analyzed.sort(key=lambda c: c.sentiment_analyzed_at)
+
+    counts = SentimentCounts()
+    points: list[SentimentTrendPoint] = []
+    for c in analyzed:
+        setattr(counts, c.sentiment, getattr(counts, c.sentiment, 0) + 1)
+        points.append(
+            SentimentTrendPoint(
+                communication_id=c.id,
+                sentiment=c.sentiment,
+                sentiment_score=c.sentiment_score or 0.0,
+                analyzed_at=c.sentiment_analyzed_at,
+                comm_type=c.comm_type,
+                channel=c.channel,
+                risk_flag_count=len(c.risk_flags or []),
+            )
+        )
+
+    avg = sum(p.sentiment_score for p in points) / len(points) if points else None
+    direction = _trend_direction([p.sentiment_score for p in points])
+
+    return SentimentTrendResponse(
+        crisis_id=crisis_id,
+        analyzed_count=len(points),
+        total_communications=len(all_comms),
+        counts=counts,
+        average_score=avg,
+        trend_direction=direction,
+        points=points,
+    )

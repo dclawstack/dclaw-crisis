@@ -1,14 +1,14 @@
 ---
 tags: [meta, prd, revised, swarm]
-version: 2.7
-date: 2026-05-18
+version: 2.8
+date: 2026-05-19
 app_id: crisis
 app_name: DClaw Crisis
 category: Operations
 status: Active
 ---
 
-# 📘 DClaw Crisis — Revised PRD v2.7
+# 📘 DClaw Crisis — Revised PRD v2.8
 
 > **The single document every agent must read before writing code for this app.**
 > Generated from DClaw Master PRD v2.2. Read the Master PRD first: https://raw.githubusercontent.com/dclawstack/dclaw-prd/main/DClaw-Master-PRD.md
@@ -62,7 +62,7 @@ status: Active
 
 ### 2.3 Feature Maturity
 - **P0 Foundation:** ✅ Fully implemented (Copilot, Detection, Response Planning at 20 templates + AI customization, Command Center with Situation Map).
-- **P1 Platform:** 🟢 Stakeholder Mapping, Resource Mobilization, and Post-Crisis Review shipped. Communication Management Phase 2 (channel send-out + sentiment) is the only P1 remainder.
+- **P1 Platform:** ✅ Fully shipped — Communication Management (drafting + multi-channel send-out + AI sentiment), Stakeholder Mapping, Resource Mobilization, Post-Crisis Review.
 - **P2 Vertical:** Not yet started
 
 ---
@@ -144,7 +144,7 @@ status: Active
 
 | # | Feature | Status | Description | AI Component | Acceptance Criteria |
 |---|---------|--------|-------------|--------------|---------------------|
-| P1.1 | **Communication Management** | 🟡 Partial | Draft and distribute crisis communications across channels. | AI communication-drafting + channel-optimization + sentiment-monitoring | ✅ AI drafting in <2 min via `/communications/draft`. ⏳ Channel send-out and sentiment monitoring pending |
+| P1.1 | **Communication Management** | ✅ Shipped | Draft, send via channel adapters, and monitor predicted-audience-sentiment over time. | AI communication-drafting + channel-optimization + sentiment-monitoring | AI drafting <2 min via `/communications/draft`. Channel adapters (email/slack/sms/app) via simulator-pattern dispatch with `POST /communications/{id}/send`. Sentiment analyzer predicts audience reaction + risk flags via `POST /communications/{id}/analyze-sentiment`. Per-crisis aggregated trend via `GET /crisis/{id}/sentiment-trend`. UI: send button on draft comms, sentiment badge + risk flags inline, sentiment trend sparkline card on crisis detail page. |
 | P1.2 | **Stakeholder Mapping** | ✅ Shipped | Track internal and external stakeholders; AI ranks who to contact, when, through what channel, with talking points. | AI stakeholder-prioritization + communication-timing | `Stakeholder` model (type, importance, contact, tags). `GET /crisis/{id}/stakeholder-priorities` returns ranked list with urgency (immediate / within_4h / within_24h / post_resolution), channel, talking_points, rationale. UI: `/stakeholders` table + per-crisis "Stakeholder priorities" button. |
 | P1.3 | **Resource Mobilization** | ✅ Shipped | Track war rooms, comm channels, vendor contacts, equipment, budget pools; AI matches resources to crisis needs and flags conflicts. | AI resource-matching + deployment-optimization | `Resource` model (type, status, capacity, location, attributes JSON). `GET /crisis/{id}/recommend-resources` returns fit-scored recs sorted desc, with conflict_note for in-use items and `gaps[]` for missing capabilities. UI: `/resources` 4-status kanban + per-crisis "Recommend resources" button. |
 | P1.4 | **Post-Crisis Review** | ✅ Shipped | Generate a structured AI post-mortem and suggest playbook updates from any crisis. | AI lessons-extraction + plan-update-suggestion | `POST /crisis/{id}/post-mortem` → {timeline_summary, what_went_well, what_went_poorly, root_cause, lessons_learned, is_speculative}. `POST /crisis/{id}/suggest-playbook-updates` → ranked suggestions (add/rewrite/remove/change_role) against the closest-category playbook. Never auto-applies. |
@@ -197,13 +197,15 @@ Every DClaw app MUST have an AI Copilot as its first P0 feature. The copilot mus
 
 ## 10. Next Tasks for Vibe Coders
 
-1. **Communication Management Phase 2 (P1.1)** — actually send AI-drafted messages to email/Slack/SMS channels and monitor sentiment over time. Final P1 remainder.
-2. **P2.1 Simulation & Training** — AI-generated tabletop scenarios.
-3. **P2.3 Media Monitoring** — sentiment tracking across configured outlets.
-4. **First real signal source integration** — RSS poller (or webhook adapter) that posts to `/api/v1/signals/`.
-5. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
-6. **Stakeholder communication scheduling** — schedule follow-ups per stakeholder per crisis.
-7. **Resource reservation** — `deploy_now` recommendations get a click-to-reserve that flips status to `in_use` with a crisis link.
+1. **P2.1 Simulation & Training** — AI-generated tabletop scenarios.
+2. **P2.3 Media Monitoring** — sentiment tracking across configured outlets (distinct from P1.1 which predicts reaction to our outbound comms).
+3. **P2.2 Continuity Integration** — sync resolved crises with DClaw Continuity for BCP activation.
+4. **P2.4 Legal Hold** — evidence preservation workflow during active crises.
+5. **Real channel provider integrations** — replace simulator adapters with SendGrid/SES (email), Slack Web API or Incoming Webhooks, Twilio (SMS).
+6. **First real signal source integration** — RSS poller (or webhook adapter) that posts to `/api/v1/signals/`.
+7. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
+8. **Stakeholder communication scheduling** — schedule follow-ups per stakeholder per crisis.
+9. **Resource reservation** — `deploy_now` recommendations get a click-to-reserve that flips status to `in_use` with a crisis link.
 
 ---
 
@@ -337,6 +339,38 @@ This separation matters because each maps to a different AI workflow: TeamMember
 
 ---
 
-*Revised PRD version: 2.7*
-*Updated: 2026-05-18 — P0 100%, P1 ¾ shipped*
-*Next review: After P1.1 Communication Phase 2 ships*
+---
+
+## 17. P1.1 Phase 2 — design notes (2026-05-19)
+
+Closes the last open P1 feature. PRD §6 P1.1 was "draft + distribute + monitor sentiment" — drafting shipped earlier; this release covers distribution and sentiment.
+
+**Channel adapters (simulator pattern)**
+- `services/channels/{email,slack,sms,app}.py` each implement a tiny `ChannelAdapter` protocol (`async def send(comm) -> DeliveryReceipt`). In simulator mode they log the payload and return a structured receipt (provider, sent_at_iso, channel-specific details — SMS counts segments, Slack hints a channel, email hints a subject).
+- `services/channels/dispatcher.py` picks the adapter by `comm.channel`. Swap any one for a real provider (SendGrid, Slack webhook, Twilio) without touching the endpoint code or the data model.
+
+**Sentiment ≠ media monitoring**
+- This P1.1 feature analyzes the *outbound* message and predicts how the audience will receive it (predicted reaction + risk flags like "tone too defensive", "no fix timeline"). It's a content-quality check.
+- *External* sentiment over media outlets / social platforms is P2.3 Media Monitoring, intentionally a separate capability.
+
+**Data model additions** (alembic `2ffe0f8ef9a7`)
+- `delivery_status` (pending/queued/sent/failed), `sent_at`, `delivery_log` (JSON receipt from the adapter).
+- `sentiment` + `sentiment_score` (−1..+1) + `sentiment_analyzed_at` + `predicted_reaction` + `risk_flags` (JSON list).
+- Server defaults on NOT NULL columns so the migration backfills cleanly on a live table.
+
+**Endpoints**
+- `POST /api/v1/communications/{id}/send` — calls the channel dispatcher, persists `sent_at` + `delivery_log`. Returns 400 if already sent or unknown channel; 502 if the adapter raises.
+- `POST /api/v1/communications/{id}/analyze-sentiment` — runs the analyzer, persists fields. Returns 503 if no LLM provider.
+- `GET /api/v1/crisis/{id}/sentiment-trend` — aggregated timeline: counts by sentiment, average score, `trend_direction` (improving / worsening / flat / insufficient_data), ordered points for sparkline rendering.
+
+**UI**
+- Communication rows: status badge (Draft / Sent / Failed), sentiment badge + score, predicted reaction, risk-flag callout, Send button (auto-hides once sent), Analyze button.
+- Crisis detail: new "Sentiment Trend" card with trend direction + sparkline; only visible when at least one comm exists.
+
+**Tests**: 12 new — channel adapter dispatch (parametrized over all 4 channels), already-sent 400, send 404, sentiment persistence (positive + negative paths), risk-flag aggregation, trend aggregation with mixed positive/negative comms + an unanalyzed comm, empty trend, 404. Full suite: **76 passing**.
+
+---
+
+*Revised PRD version: 2.8*
+*Updated: 2026-05-19 — P0 + P1 both fully shipped*
+*Next review: When the first P2 feature lands*

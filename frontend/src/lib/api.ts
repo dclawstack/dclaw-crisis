@@ -149,6 +149,9 @@ export async function deleteActionItem(id: string) {
 }
 
 // Communications
+export type DeliveryStatus = "pending" | "queued" | "sent" | "failed";
+export type Sentiment = "positive" | "neutral" | "negative" | "mixed";
+
 export interface Communication {
   id: string;
   crisis_id: string;
@@ -156,6 +159,14 @@ export interface Communication {
   message: string;
   comm_type: "internal_update" | "stakeholder_alert" | "public_statement" | "exec_brief";
   channel: "app" | "email" | "slack" | "sms";
+  delivery_status: DeliveryStatus;
+  sent_at: string | null;
+  delivery_log: Record<string, unknown>;
+  sentiment: Sentiment | null;
+  sentiment_score: number | null;
+  sentiment_analyzed_at: string | null;
+  predicted_reaction: string | null;
+  risk_flags: string[];
   created_at: string;
   updated_at: string;
 }
@@ -166,11 +177,19 @@ export async function listCommunications(params?: { crisis_id?: string }) {
   return fetchJson<Communication[]>(`/api/v1/communications/?${query.toString()}`);
 }
 
-export async function createCommunication(payload: Omit<Communication, "id" | "created_at" | "updated_at">) {
+export interface CommunicationCreatePayload {
+  crisis_id: string;
+  author_id?: string;
+  message: string;
+  comm_type?: Communication["comm_type"];
+  channel?: Communication["channel"];
+}
+
+export async function createCommunication(payload: CommunicationCreatePayload) {
   return fetchJson<Communication>("/api/v1/communications/", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export async function updateCommunication(id: string, payload: Partial<Omit<Communication, "id" | "created_at" | "updated_at">>) {
+export async function updateCommunication(id: string, payload: Partial<CommunicationCreatePayload>) {
   return fetchJson<Communication>(`/api/v1/communications/${id}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 
@@ -482,6 +501,47 @@ export interface ResourceRecommendations {
 
 export async function getResourceRecommendations(crisisId: string) {
   return fetchJson<ResourceRecommendations>(`/api/v1/crisis/${crisisId}/recommend-resources`);
+}
+
+// Communication send + sentiment
+export async function sendCommunication(id: string) {
+  return fetchJson<Communication>(`/api/v1/communications/${id}/send`, { method: "POST" });
+}
+
+export interface SentimentResult {
+  sentiment: Sentiment;
+  sentiment_score: number;
+  predicted_reaction: string;
+  risk_flags: string[];
+  analyzed_at: string;
+}
+
+export async function analyzeCommunicationSentiment(id: string) {
+  return fetchJson<SentimentResult>(`/api/v1/communications/${id}/analyze-sentiment`, { method: "POST" });
+}
+
+export interface SentimentTrendPoint {
+  communication_id: string;
+  sentiment: Sentiment;
+  sentiment_score: number;
+  analyzed_at: string;
+  comm_type: string;
+  channel: string;
+  risk_flag_count: number;
+}
+
+export interface SentimentTrend {
+  crisis_id: string;
+  analyzed_count: number;
+  total_communications: number;
+  counts: { positive: number; neutral: number; negative: number; mixed: number };
+  average_score: number | null;
+  trend_direction: "improving" | "worsening" | "flat" | "insufficient_data";
+  points: SentimentTrendPoint[];
+}
+
+export async function getSentimentTrend(crisisId: string) {
+  return fetchJson<SentimentTrend>(`/api/v1/crisis/${crisisId}/sentiment-trend`);
 }
 
 export { ApiError };
