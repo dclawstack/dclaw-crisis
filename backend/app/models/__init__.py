@@ -5,3 +5,5 @@ from app.models.action_item import ActionItem, ActionItemStatus, ActionItemPrior
 from app.models.communication import Communication, CommType, CommChannel
 from app.models.playbook import Playbook, PlaybookCategory
 from app.models.signal import Signal, SignalStatus
+from app.models.stakeholder import Stakeholder, StakeholderType, StakeholderImportance
+from app.models.resource import Resource, ResourceType, ResourceStatus

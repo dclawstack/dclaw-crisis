@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, summarizeCrisis, getNextAction, draftCommunication, generatePostMortem, suggestPlaybookUpdates, type Crisis, type ActionItem, type Communication, type NextAction, type PostMortem, type PlaybookAdvice, ApiError } from "@/lib/api";
-import { Sparkles, Loader2, BookOpen, ScrollText } from "lucide-react";
+import { getCrisis, updateCrisis, listActionItems, listCommunications, createActionItem, createCommunication, summarizeCrisis, getNextAction, draftCommunication, generatePostMortem, suggestPlaybookUpdates, getStakeholderPriorities, getResourceRecommendations, type Crisis, type ActionItem, type Communication, type NextAction, type PostMortem, type PlaybookAdvice, type StakeholderPriorities, type ResourceRecommendations, ApiError } from "@/lib/api";
+import { Sparkles, Loader2, BookOpen, ScrollText, Users, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,10 @@ export default function CrisisDetailPage() {
   const [postMortemLoading, setPostMortemLoading] = useState(false);
   const [advice, setAdvice] = useState<PlaybookAdvice | null>(null);
   const [adviceLoading, setAdviceLoading] = useState(false);
+  const [stakeholderPriorities, setStakeholderPriorities] = useState<StakeholderPriorities | null>(null);
+  const [stakeholdersLoading, setStakeholdersLoading] = useState(false);
+  const [resourceRecs, setResourceRecs] = useState<ResourceRecommendations | null>(null);
+  const [resourcesLoading, setResourcesLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -180,6 +184,32 @@ export default function CrisisDetailPage() {
       setAiError(e instanceof Error ? e.message : "Playbook suggestion failed");
     } finally {
       setAdviceLoading(false);
+    }
+  }
+
+  async function handleStakeholderPriorities() {
+    setStakeholdersLoading(true);
+    setAiError(null);
+    try {
+      const res = await getStakeholderPriorities(id);
+      setStakeholderPriorities(res);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Stakeholder priorities failed");
+    } finally {
+      setStakeholdersLoading(false);
+    }
+  }
+
+  async function handleRecommendResources() {
+    setResourcesLoading(true);
+    setAiError(null);
+    try {
+      const res = await getResourceRecommendations(id);
+      setResourceRecs(res);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "Resource recommendations failed");
+    } finally {
+      setResourcesLoading(false);
     }
   }
 
@@ -326,6 +356,14 @@ export default function CrisisDetailPage() {
                   {adviceLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <BookOpen className="h-3 w-3 mr-2" />}
                   Suggest playbook updates
                 </Button>
+                <Button onClick={handleStakeholderPriorities} size="sm" variant="outline" disabled={stakeholdersLoading}>
+                  {stakeholdersLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Users className="h-3 w-3 mr-2" />}
+                  Stakeholder priorities
+                </Button>
+                <Button onClick={handleRecommendResources} size="sm" variant="outline" disabled={resourcesLoading}>
+                  {resourcesLoading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Boxes className="h-3 w-3 mr-2" />}
+                  Recommend resources
+                </Button>
               </div>
               {(crisis.status !== "resolved" && crisis.status !== "contained" && crisis.status !== "post_mortem") && (
                 <p className="text-[11px] text-gray-500 italic">
@@ -416,6 +454,71 @@ export default function CrisisDetailPage() {
                         </li>
                       ))}
                     </ul>
+                  )}
+                </div>
+              )}
+              {stakeholderPriorities && (
+                <div className="border border-pink-200 bg-pink-50 rounded p-3 space-y-2 text-sm">
+                  <div className="text-xs font-semibold text-pink-700 uppercase tracking-wide">Stakeholder Priorities</div>
+                  {stakeholderPriorities.notes && <div className="text-slate-700 text-xs italic">{stakeholderPriorities.notes}</div>}
+                  {stakeholderPriorities.priorities.length === 0 ? (
+                    <div className="text-xs text-slate-500 italic">No stakeholders need contact for this crisis.</div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {stakeholderPriorities.priorities.map((p, i) => (
+                        <li key={i} className="bg-white rounded border border-pink-100 p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-medium">{p.stakeholder_name}</div>
+                            <Badge className={p.urgency === "immediate" ? "bg-red-600 text-white" : p.urgency === "within_4h" ? "bg-orange-500 text-white" : p.urgency === "within_24h" ? "bg-yellow-500 text-black" : "bg-slate-500 text-white"}>
+                              {p.urgency.replace("_", " ")}
+                            </Badge>
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {p.stakeholder_type}{p.organization ? ` · ${p.organization}` : ""} · via {p.channel.replace("_", " ")}
+                          </div>
+                          {p.talking_points.length > 0 && (
+                            <ul className="list-disc pl-4 text-xs text-slate-700 mt-1">
+                              {p.talking_points.map((t, j) => <li key={j}>{t}</li>)}
+                            </ul>
+                          )}
+                          {p.rationale && <div className="text-[11px] italic text-slate-600 mt-1">Why: {p.rationale}</div>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              {resourceRecs && (
+                <div className="border border-pink-200 bg-pink-50 rounded p-3 space-y-2 text-sm">
+                  <div className="text-xs font-semibold text-pink-700 uppercase tracking-wide">Resource Recommendations</div>
+                  {resourceRecs.recommendations.length === 0 ? (
+                    <div className="text-xs text-slate-500 italic">No matching resources found.</div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {resourceRecs.recommendations.map((r, i) => (
+                        <li key={i} className="bg-white rounded border border-pink-100 p-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-medium">{r.resource_name}</div>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-[10px]">{r.current_status.replace("_", " ")}</Badge>
+                              <span className="text-[10px] text-slate-500 tabular-nums">fit {Math.round(r.fit_score * 100)}%</span>
+                            </div>
+                          </div>
+                          <div className="text-[11px] text-slate-500">{r.resource_type.replace("_", " ")}</div>
+                          <div className="text-xs text-slate-700 mt-1">{r.reason}</div>
+                          {r.conflict_note && <div className="text-[11px] text-amber-700 mt-1">⚠ {r.conflict_note}</div>}
+                          {r.deploy_now && <Badge className="bg-emerald-500 text-white text-[10px] mt-1">deploy now</Badge>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {resourceRecs.gaps.length > 0 && (
+                    <div className="mt-2 border-t border-pink-200 pt-2">
+                      <div className="text-[11px] uppercase font-medium text-amber-700">Gaps</div>
+                      <ul className="list-disc pl-4 text-xs text-slate-700">
+                        {resourceRecs.gaps.map((g, i) => <li key={i}>{g}</li>)}
+                      </ul>
+                    </div>
                   )}
                 </div>
               )}

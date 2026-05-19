@@ -1,6 +1,6 @@
 ---
 tags: [meta, prd, revised, swarm]
-version: 2.6
+version: 2.7
 date: 2026-05-18
 app_id: crisis
 app_name: DClaw Crisis
@@ -8,7 +8,7 @@ category: Operations
 status: Active
 ---
 
-# 📘 DClaw Crisis — Revised PRD v2.6
+# 📘 DClaw Crisis — Revised PRD v2.7
 
 > **The single document every agent must read before writing code for this app.**
 > Generated from DClaw Master PRD v2.2. Read the Master PRD first: https://raw.githubusercontent.com/dclawstack/dclaw-prd/main/DClaw-Master-PRD.md
@@ -62,7 +62,7 @@ status: Active
 
 ### 2.3 Feature Maturity
 - **P0 Foundation:** ✅ Fully implemented (Copilot, Detection, Response Planning at 20 templates + AI customization, Command Center with Situation Map).
-- **P1 Platform:** 🟡 Communication Management (AI drafting) + Post-Crisis Review (AI post-mortem + playbook advisor) shipped. Stakeholder Mapping and Resource Mobilization still pending.
+- **P1 Platform:** 🟢 Stakeholder Mapping, Resource Mobilization, and Post-Crisis Review shipped. Communication Management Phase 2 (channel send-out + sentiment) is the only P1 remainder.
 - **P2 Vertical:** Not yet started
 
 ---
@@ -145,8 +145,8 @@ status: Active
 | # | Feature | Status | Description | AI Component | Acceptance Criteria |
 |---|---------|--------|-------------|--------------|---------------------|
 | P1.1 | **Communication Management** | 🟡 Partial | Draft and distribute crisis communications across channels. | AI communication-drafting + channel-optimization + sentiment-monitoring | ✅ AI drafting in <2 min via `/communications/draft`. ⏳ Channel send-out and sentiment monitoring pending |
-| P1.2 | **Stakeholder Mapping** | ⏳ Pending | Track and communicate with internal and external stakeholders. | AI stakeholder-prioritization + communication-timing | Map 100 stakeholders; prioritize; schedule communications |
-| P1.3 | **Resource Mobilization** | ⏳ Pending | Track and deploy resources during crisis response. | AI resource-matching + deployment-optimization | Track 50 resource types; match to need; optimize deployment |
+| P1.2 | **Stakeholder Mapping** | ✅ Shipped | Track internal and external stakeholders; AI ranks who to contact, when, through what channel, with talking points. | AI stakeholder-prioritization + communication-timing | `Stakeholder` model (type, importance, contact, tags). `GET /crisis/{id}/stakeholder-priorities` returns ranked list with urgency (immediate / within_4h / within_24h / post_resolution), channel, talking_points, rationale. UI: `/stakeholders` table + per-crisis "Stakeholder priorities" button. |
+| P1.3 | **Resource Mobilization** | ✅ Shipped | Track war rooms, comm channels, vendor contacts, equipment, budget pools; AI matches resources to crisis needs and flags conflicts. | AI resource-matching + deployment-optimization | `Resource` model (type, status, capacity, location, attributes JSON). `GET /crisis/{id}/recommend-resources` returns fit-scored recs sorted desc, with conflict_note for in-use items and `gaps[]` for missing capabilities. UI: `/resources` 4-status kanban + per-crisis "Recommend resources" button. |
 | P1.4 | **Post-Crisis Review** | ✅ Shipped | Generate a structured AI post-mortem and suggest playbook updates from any crisis. | AI lessons-extraction + plan-update-suggestion | `POST /crisis/{id}/post-mortem` → {timeline_summary, what_went_well, what_went_poorly, root_cause, lessons_learned, is_speculative}. `POST /crisis/{id}/suggest-playbook-updates` → ranked suggestions (add/rewrite/remove/change_role) against the closest-category playbook. Never auto-applies. |
 
 ---
@@ -197,12 +197,13 @@ Every DClaw app MUST have an AI Copilot as its first P0 feature. The copilot mus
 
 ## 10. Next Tasks for Vibe Coders
 
-1. **Stakeholder Mapping (P1.2)** — new model + page; AI prioritization scoring against active crises.
-2. **Resource Mobilization (P1.3)** — track resource types/locations; AI matching of resources to active crisis needs.
-3. **First real source integration** — build an RSS poller (or a Slack/Datadog webhook adapter) that posts to `/api/v1/signals/`. Demonstrates the ingestion contract end-to-end against a live feed.
-4. **Playbook advisor → one-click apply** — let operators accept individual suggested_changes and write them back to the playbook (with audit trail).
-5. **Communication Management Phase 2 (P1.1)** — actually send the AI-drafted message to email/Slack/SMS channels and monitor sentiment.
-6. **Signal deduplication** — merge near-identical signals from the same source within a time window.
+1. **Communication Management Phase 2 (P1.1)** — actually send AI-drafted messages to email/Slack/SMS channels and monitor sentiment over time. Final P1 remainder.
+2. **P2.1 Simulation & Training** — AI-generated tabletop scenarios.
+3. **P2.3 Media Monitoring** — sentiment tracking across configured outlets.
+4. **First real signal source integration** — RSS poller (or webhook adapter) that posts to `/api/v1/signals/`.
+5. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
+6. **Stakeholder communication scheduling** — schedule follow-ups per stakeholder per crisis.
+7. **Resource reservation** — `deploy_now` recommendations get a click-to-reserve that flips status to `in_use` with a crisis link.
 
 ---
 
@@ -305,6 +306,37 @@ This release completes the remaining P0 polish items and ships P1.4 Post-Crisis 
 
 ---
 
-*Revised PRD version: 2.6*
-*Updated: 2026-05-18 — P0 100% complete; P1 ½ shipped (P1.1 partial + P1.4 full)*
-*Next review: After Stakeholder Mapping (P1.2) and Resource Mobilization (P1.3) ship*
+---
+
+## 16. P1.2 + P1.3 — design notes (2026-05-18)
+
+**Distinction from existing models**
+- `TeamMember` = *internal responders* (the people doing the work).
+- `Stakeholder` = *external + internal audiences* you communicate **with** during a crisis (customers, regulators, media, investors, board, vendors, partners).
+- `Resource` = *non-people assets* you deploy: war rooms, Slack channels, vendor contacts, equipment, budget pools, on-call rosters, external services.
+
+This separation matters because each maps to a different AI workflow: TeamMembers get *assigned* action items, Stakeholders get *contacted*, Resources get *deployed*.
+
+**AI design conservatism**
+- Stakeholder prioritizer filters out anything tagged `not_required` and unknown IDs; sorts results by urgency in code (not trusting model order).
+- Resource matcher enforces `fit_score >= 0.3` to avoid noise; respects in-use status by surfacing a `conflict_note` rather than blocking the recommendation; reports `gaps[]` for missing capabilities so the operator knows the org needs new resources, not just better matching.
+- Empty-roster / empty-inventory cases short-circuit before calling the LLM and return helpful guidance instead of an error.
+
+**Endpoints**
+- `GET /api/v1/stakeholders/` `POST /` `GET/PUT/DELETE /{id}` — CRUD with optional `type` and `active_only` filters.
+- `GET /api/v1/resources/` `POST /` `GET/PUT/DELETE /{id}` — CRUD with optional `status` and `resource_type` filters.
+- `GET /api/v1/crisis/{id}/stakeholder-priorities` — AI ranking.
+- `GET /api/v1/crisis/{id}/recommend-resources` — AI matching with gaps.
+
+**UI**
+- `/stakeholders` — table with type filter, active-only toggle, edit modal with tags + notes.
+- `/resources` — 4-column kanban grouped by status (available / reserved / in use / unavailable), cards show capacity + location + free-form JSON attributes.
+- Crisis detail page: two more AI buttons surface results inline with structured rendering (urgency-colored badges, talking points, fit-score progress, gap list).
+
+**Tests**: 64 passing (12 new — stakeholder + resource CRUD + filter tests, prioritizer and matcher endpoint tests with junk-entry filtering and empty-roster paths).
+
+---
+
+*Revised PRD version: 2.7*
+*Updated: 2026-05-18 — P0 100%, P1 ¾ shipped*
+*Next review: After P1.1 Communication Phase 2 ships*

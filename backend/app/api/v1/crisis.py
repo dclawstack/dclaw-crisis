@@ -11,6 +11,8 @@ from app.services.ai_summarizer import summarize_crisis
 from app.services.ai_recommender import recommend_next_action
 from app.services.ai_post_mortem import generate_post_mortem
 from app.services.ai_playbook_advisor import suggest_playbook_updates
+from app.services.ai_stakeholder_prioritizer import prioritize_stakeholders
+from app.services.ai_resource_matcher import match_resources
 from app.services.llm import LLMUnavailableError
 
 router = APIRouter()
@@ -177,3 +179,67 @@ async def suggest_playbook_changes(crisis_id: str, db: AsyncSession = Depends(ge
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
     return PlaybookAdvisorResponse(**data)
+
+
+class StakeholderPriority(BaseModel):
+    stakeholder_id: str
+    stakeholder_name: str
+    stakeholder_type: str
+    organization: str | None
+    urgency: str
+    channel: str
+    talking_points: list[str]
+    rationale: str
+
+
+class StakeholderPrioritiesResponse(BaseModel):
+    priorities: list[StakeholderPriority]
+    notes: str
+
+
+class ResourceRecommendation(BaseModel):
+    resource_id: str
+    resource_name: str
+    resource_type: str
+    current_status: str
+    fit_score: float
+    deploy_now: bool
+    reason: str
+    conflict_note: str | None
+
+
+class ResourceRecommendationsResponse(BaseModel):
+    recommendations: list[ResourceRecommendation]
+    gaps: list[str]
+
+
+@router.get("/{crisis_id}/stakeholder-priorities", response_model=StakeholderPrioritiesResponse)
+async def stakeholder_priorities(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    """Rank which stakeholders to contact and how, given the crisis context."""
+    repo = CrisisRepository(db)
+    crisis = await repo.get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        data = await prioritize_stakeholders(crisis, db)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
+    return StakeholderPrioritiesResponse(**data)
+
+
+@router.get("/{crisis_id}/recommend-resources", response_model=ResourceRecommendationsResponse)
+async def recommend_resources(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    """Recommend which resources to deploy for this crisis."""
+    repo = CrisisRepository(db)
+    crisis = await repo.get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        data = await match_resources(crisis, db)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
+    return ResourceRecommendationsResponse(**data)
