@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.1"
     llm_timeout_seconds: int = 60
 
+    # DClaw Continuity integration (P2.2). Leave URL empty to use simulator mode.
+    continuity_api_url: str = ""
+    continuity_api_key: str = ""
+
     model_config = ConfigDict(
         env_file=(_REPO_ROOT / ".env", _REPO_ROOT / "backend" / ".env"),
         case_sensitive=False,

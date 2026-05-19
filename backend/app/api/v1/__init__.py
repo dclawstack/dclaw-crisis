@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     crisis, team_members, action_items, communications, playbooks,
     dashboard, copilot, signals, stakeholders, resources,
+    simulations, media_mentions, legal_holds,
 )
 
 v1_router = APIRouter()
@@ -16,3 +17,6 @@ v1_router.include_router(copilot.router, prefix="/copilot", tags=["copilot"])
 v1_router.include_router(signals.router, prefix="/signals", tags=["signals"])
 v1_router.include_router(stakeholders.router, prefix="/stakeholders", tags=["stakeholders"])
 v1_router.include_router(resources.router, prefix="/resources", tags=["resources"])
+v1_router.include_router(simulations.router, prefix="/simulations", tags=["simulations"])
+v1_router.include_router(media_mentions.router, prefix="/media-mentions", tags=["media-mentions"])
+v1_router.include_router(legal_holds.router, prefix="/legal-holds", tags=["legal-holds"])

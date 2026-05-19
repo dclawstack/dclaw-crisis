@@ -13,8 +13,17 @@ from app.services.ai_post_mortem import generate_post_mortem
 from app.services.ai_playbook_advisor import suggest_playbook_updates
 from app.services.ai_stakeholder_prioritizer import prioritize_stakeholders
 from app.services.ai_resource_matcher import match_resources
+from app.services.ai_legal_hold import draft_hold_notice, recommend_evidence
+from app.services.continuity_client import activate_bcp
 from app.services.llm import LLMUnavailableError
 from app.repositories.communication_repo import CommunicationRepository
+from app.repositories.continuity_repo import ContinuityActivationRepository
+from app.models.continuity_activation import ActivationStatus, ContinuityActivation
+from app.schemas.continuity_activation import (
+    ActivateBCPRequest,
+    ContinuityActivationResponse,
+)
+from app.core.utils import utc_now
 
 router = APIRouter()
 
@@ -331,3 +340,102 @@ async def sentiment_trend(crisis_id: str, db: AsyncSession = Depends(get_db)):
         trend_direction=direction,
         points=points,
     )
+
+
+# ── P2.2 Continuity activation ───────────────────────────────────────────────
+
+
+@router.post("/{crisis_id}/activate-bcp", response_model=ContinuityActivationResponse, status_code=201)
+async def activate_bcp_endpoint(
+    crisis_id: str, payload: ActivateBCPRequest, db: AsyncSession = Depends(get_db)
+):
+    """Activate a Business Continuity Plan for this crisis via DClaw Continuity.
+
+    Falls back to simulator mode if `CONTINUITY_API_URL` is not configured.
+    """
+    crisis = await CrisisRepository(db).get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+
+    result = await activate_bcp(
+        crisis_id=crisis.id,
+        crisis_title=crisis.title,
+        crisis_severity=crisis.severity,
+        crisis_category=crisis.category,
+        bcp_plan_id=payload.bcp_plan_id,
+        bcp_plan_name=payload.bcp_plan_name,
+        notes=payload.notes,
+    )
+
+    activation = ContinuityActivation(
+        crisis_id=crisis.id,
+        bcp_plan_id=payload.bcp_plan_id,
+        bcp_plan_name=payload.bcp_plan_name,
+        provider=result["provider"],
+        status=ActivationStatus(result["status"]) if result["status"] in {s.value for s in ActivationStatus} else ActivationStatus.failed,
+        request_payload={"bcp_plan_id": payload.bcp_plan_id, "bcp_plan_name": payload.bcp_plan_name, "notes": payload.notes},
+        response_payload=result.get("response_payload") or {},
+        error_message=result.get("error_message"),
+    )
+    if activation.status == ActivationStatus.activated:
+        activation.activated_at = utc_now()
+    repo = ContinuityActivationRepository(db)
+    return await repo.create(activation)
+
+
+@router.get("/{crisis_id}/activations", response_model=list[ContinuityActivationResponse])
+async def list_activations(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    crisis = await CrisisRepository(db).get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    return await ContinuityActivationRepository(db).list_by_crisis(crisis_id)
+
+
+# ── P2.4 Legal Hold AI helpers ────────────────────────────────────────────────
+
+
+class DraftHoldResponse(BaseModel):
+    notice_text: str
+
+
+class EvidenceDataSource(BaseModel):
+    name: str
+    type: str
+    rationale: str
+
+
+class EvidenceCustodian(BaseModel):
+    role: str
+    reason: str
+
+
+class EvidenceRecommendation(BaseModel):
+    data_sources: list[EvidenceDataSource]
+    custodians: list[EvidenceCustodian]
+    preservation_duration_days_min: int
+
+
+@router.post("/{crisis_id}/draft-hold-notice", response_model=DraftHoldResponse)
+async def draft_hold_notice_endpoint(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    crisis = await CrisisRepository(db).get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        text = await draft_hold_notice(crisis)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    return DraftHoldResponse(notice_text=text)
+
+
+@router.post("/{crisis_id}/recommend-evidence", response_model=EvidenceRecommendation)
+async def recommend_evidence_endpoint(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    crisis = await CrisisRepository(db).get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        data = await recommend_evidence(crisis)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
+    return EvidenceRecommendation(**data)

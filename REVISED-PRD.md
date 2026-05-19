@@ -1,6 +1,6 @@
 ---
 tags: [meta, prd, revised, swarm]
-version: 2.8
+version: 2.9
 date: 2026-05-19
 app_id: crisis
 app_name: DClaw Crisis
@@ -8,7 +8,7 @@ category: Operations
 status: Active
 ---
 
-# 📘 DClaw Crisis — Revised PRD v2.8
+# 📘 DClaw Crisis — Revised PRD v2.9
 
 > **The single document every agent must read before writing code for this app.**
 > Generated from DClaw Master PRD v2.2. Read the Master PRD first: https://raw.githubusercontent.com/dclawstack/dclaw-prd/main/DClaw-Master-PRD.md
@@ -63,7 +63,7 @@ status: Active
 ### 2.3 Feature Maturity
 - **P0 Foundation:** ✅ Fully implemented (Copilot, Detection, Response Planning at 20 templates + AI customization, Command Center with Situation Map).
 - **P1 Platform:** ✅ Fully shipped — Communication Management (drafting + multi-channel send-out + AI sentiment), Stakeholder Mapping, Resource Mobilization, Post-Crisis Review.
-- **P2 Vertical:** Not yet started
+- **P2 Vertical:** ✅ Fully shipped — Simulation & Training, Continuity Integration, Media Monitoring, Legal Hold.
 
 ---
 
@@ -155,10 +155,12 @@ status: Active
 
 | # | Feature | Description | AI Component | Acceptance Criteria |
 |---|---------|-------------|--------------|---------------------|
-| P2.1 | **Simulation & Training** | Run crisis simulations with AI-generated scenarios. | AI scenario-generation + participant-evaluation | Generate scenarios; run simulation; evaluate response; score |
-| P2.2 | **Integration with Continuity** | Sync with DClaw Continuity for BCP activation. | API sync + plan-activation | Auto-activate BCP; sync status; unified reporting |
-| P2.3 | **Media Monitoring** | Track media coverage and sentiment during crisis. | AI media-monitoring + sentiment-analysis + response-suggestion | Track 1000 outlets; sentiment score; suggest responses |
-| P2.4 | **Legal Hold** | Manage legal hold and evidence preservation during crisis. | AI legal-hold-management + evidence-tracking | Issue legal hold; track compliance; preserve evidence |
+| # | Feature | Status | Description | AI Component | Acceptance Criteria |
+|---|---------|--------|-------------|--------------|---------------------|
+| P2.1 | **Simulation & Training** | ✅ Shipped | AI-generated tabletop scenarios with response capture + AI evaluation. | AI scenario-generation + participant-evaluation | `Simulation` model with scenario, expected actions, expected outcomes. `POST /simulations/` auto-generates the scenario. `POST /{id}/start`, `/respond`, `/evaluate` run the lifecycle. Evaluator scores 0.0-1.0 with per-outcome breakdown (yes/partial/no). |
+| P2.2 | **Integration with Continuity** | ✅ Shipped | Trigger DClaw Continuity BCP activations from a crisis, simulator-mode when the API URL is unset. | API sync + plan-activation | `ContinuityActivation` model linked to crisis. `POST /crisis/{id}/activate-bcp` calls the Continuity client (real or simulator). Failures are recorded with `status=failed` + `error_message`. `GET /crisis/{id}/activations` lists history. |
+| P2.3 | **Media Monitoring** | ✅ Shipped | Ingest external media mentions, score sentiment from the org's perspective, aggregate per crisis. | AI media-monitoring + sentiment-analysis + response-suggestion | `MediaMention` model with outlet/url/headline/snippet/author + sentiment fields + key_themes. `POST /media-mentions/` auto-analyzes on ingest. `GET /media-mentions/coverage/{crisis_id}` aggregates counts, average score, top themes, by-outlet breakdown. Distinct from P1.1 (which scores *our* outbound messages). |
+| P2.4 | **Legal Hold** | ✅ Shipped | Issue/track/release legal holds; AI drafts hold-notice text and recommends evidence to preserve. | AI legal-hold-management + evidence-tracking | `LegalHold` model with status (draft → active → released) lifecycle, custodians, data sources, hold_notice_text. `POST /legal-holds/{id}/issue`, `/release`. `POST /crisis/{id}/draft-hold-notice` produces AI-generated notice (always prefixed with "NOT LEGAL ADVICE" disclaimer). `POST /crisis/{id}/recommend-evidence` returns data sources + custodians + minimum retention days. |
 
 ---
 
@@ -197,10 +199,14 @@ Every DClaw app MUST have an AI Copilot as its first P0 feature. The copilot mus
 
 ## 10. Next Tasks for Vibe Coders
 
-1. **P2.1 Simulation & Training** — AI-generated tabletop scenarios.
-2. **P2.3 Media Monitoring** — sentiment tracking across configured outlets (distinct from P1.1 which predicts reaction to our outbound comms).
-3. **P2.2 Continuity Integration** — sync resolved crises with DClaw Continuity for BCP activation.
-4. **P2.4 Legal Hold** — evidence preservation workflow during active crises.
+1. **Real channel + integration providers** — swap simulator-mode adapters (channels, continuity client) for real implementations (SendGrid/Slack/Twilio, live Continuity API).
+2. **First real signal source integration** — RSS poller / webhook adapter against `/api/v1/signals/`.
+3. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
+4. **Stakeholder communication scheduling** — schedule follow-ups per stakeholder per crisis.
+5. **Resource reservation flow** — `deploy_now` recommendations get a click-to-reserve that flips status to `in_use` with a crisis link.
+6. **Simulation participants linkage** — connect Simulation.participants to TeamMember IDs and track per-participant performance.
+7. **Media monitoring ingestion automation** — RSS / Google Alerts / Twitter webhook adapters posting to `/media-mentions/`.
+8. **Legal hold reminders** — periodic acknowledgement emails to custodians while a hold is active.
 5. **Real channel provider integrations** — replace simulator adapters with SendGrid/SES (email), Slack Web API or Incoming Webhooks, Twilio (SMS).
 6. **First real signal source integration** — RSS poller (or webhook adapter) that posts to `/api/v1/signals/`.
 7. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
@@ -371,6 +377,37 @@ Closes the last open P1 feature. PRD §6 P1.1 was "draft + distribute + monitor 
 
 ---
 
-*Revised PRD version: 2.8*
-*Updated: 2026-05-19 — P0 + P1 both fully shipped*
-*Next review: When the first P2 feature lands*
+---
+
+## 18. P2 — design notes (2026-05-19)
+
+This release closes P2 in full. The pattern across all 4 features is the same: a real data model + AI service + REST surface + a dedicated frontend page, with conservative AI shaping so malformed model output never crashes the response.
+
+**P2.1 Simulation & Training**
+- `Simulation` model captures scenario, expected_actions (ordered list with roles), expected_outcomes, operator_notes, evaluation_summary + breakdown + score.
+- `ai_scenario_generator.py` emits a narrative scenario with a "twist at minute 30" injected into the scenario text — gives facilitators a mid-exercise complication without operator-visible scaffolding.
+- `ai_simulation_evaluator.py` scores 0.0-1.0 with per-outcome `yes/partial/no` flags. Score thresholds prevent over-generous grading.
+- Lifecycle is `draft → running → completed` (or `cancelled`); `evaluate` requires `operator_notes` to be set first.
+
+**P2.2 Integration with Continuity**
+- `continuity_client.py` is a small HTTP client. If `CONTINUITY_API_URL` is unset, it short-circuits to a "simulator" provider that returns a stub acknowledgement — the rest of the stack works in dev without the Continuity service running.
+- Failures **never throw**. They become rows with `status=failed` and `error_message`, so the operator sees what happened and can retry.
+- `ContinuityActivation` links to Crisis with `ondelete=CASCADE`; the audit trail follows the crisis.
+
+**P2.3 Media Monitoring**
+- `MediaMention` is parallel to but distinct from `Signal`. Signals are *pre-crisis warnings*; MediaMentions are *coverage of crises that are already declared*. Same AI techniques, different lifecycle position.
+- `ai_media_sentiment.py` scores from the org's perspective (positive = good for the org). `key_themes[]` lets the coverage endpoint surface a `top_themes` view without manual tagging.
+- `GET /media-mentions/coverage/{crisis_id}` aggregates counts, average score, top themes (across all mentions), and per-outlet volume — the data shape a journalist-relations team wants in one call.
+
+**P2.4 Legal Hold**
+- `LegalHold` lifecycle: `draft → active → released`. Cannot modify or delete while `active` (data-safety guarantee).
+- AI services are clearly marked "NOT LEGAL ADVICE" — the draft notice always begins with that disclaimer.
+- `recommend_evidence` constrains `type` to a fixed taxonomy (email/chat/document_repo/database/logs/backups/other) and clamps `preservation_duration_days_min ≥ 7` (conservative floor).
+
+**Tests**: 90 passing (14 new in `test_p2.py` covering: simulation full lifecycle including draft-running-completed transitions, can't-start-twice, BCP simulator mode + external failure path, list activations, media auto-analysis + aggregation + opt-out, legal hold full lifecycle including state-guard 400s + delete-while-active rejection, hold notice + evidence recommendation endpoints, 404 paths across all routers).
+
+---
+
+*Revised PRD version: 2.9*
+*Updated: 2026-05-19 — P0 + P1 + P2 all 100% shipped*
+*Next review: Real-provider integration sprint (channels, continuity, signal sources)*

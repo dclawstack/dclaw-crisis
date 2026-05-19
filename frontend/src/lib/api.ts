@@ -544,4 +544,208 @@ export async function getSentimentTrend(crisisId: string) {
   return fetchJson<SentimentTrend>(`/api/v1/crisis/${crisisId}/sentiment-trend`);
 }
 
+// ─── P2.1 Simulations ──────────────────────────────────────────────────────
+export type ScenarioType = "operational" | "security" | "legal" | "pr" | "supply_chain" | "hr" | "financial" | "other";
+export type SimulationStatus = "draft" | "running" | "completed" | "cancelled";
+
+export interface SimulationAction {
+  order: number;
+  action: string;
+  role: string;
+}
+
+export interface SimulationBreakdownItem {
+  expected_outcome: string;
+  achieved: "yes" | "partial" | "no";
+  comment: string;
+}
+
+export interface Simulation {
+  id: string;
+  name: string;
+  scenario_type: ScenarioType;
+  severity: "critical" | "high" | "medium" | "low";
+  participants: string[];
+  status: SimulationStatus;
+  generated_scenario: string | null;
+  generated_actions: SimulationAction[];
+  expected_outcomes: string[];
+  operator_notes: string | null;
+  evaluation_summary: string | null;
+  score: number | null;
+  evaluation_breakdown: SimulationBreakdownItem[];
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listSimulations() {
+  return fetchJson<Simulation[]>("/api/v1/simulations/");
+}
+
+export async function createSimulation(payload: { name: string; scenario_type?: ScenarioType; severity?: string; participants?: string[]; auto_generate?: boolean }) {
+  return fetchJson<Simulation>("/api/v1/simulations/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function startSimulation(id: string) {
+  return fetchJson<Simulation>(`/api/v1/simulations/${id}/start`, { method: "POST" });
+}
+
+export async function respondSimulation(id: string, operator_notes: string) {
+  return fetchJson<Simulation>(`/api/v1/simulations/${id}/respond`, { method: "POST", body: JSON.stringify({ operator_notes }) });
+}
+
+export async function evaluateSimulation(id: string) {
+  return fetchJson<{ summary: string; score: number; breakdown: SimulationBreakdownItem[] }>(`/api/v1/simulations/${id}/evaluate`, { method: "POST" });
+}
+
+export async function deleteSimulation(id: string) {
+  return fetchJson<void>(`/api/v1/simulations/${id}`, { method: "DELETE" });
+}
+
+// ─── P2.2 Continuity activation ────────────────────────────────────────────
+export type ActivationStatus = "pending" | "activated" | "failed" | "cancelled";
+
+export interface ContinuityActivation {
+  id: string;
+  crisis_id: string;
+  bcp_plan_id: string | null;
+  bcp_plan_name: string | null;
+  status: ActivationStatus;
+  provider: string;
+  request_payload: Record<string, unknown>;
+  response_payload: Record<string, unknown>;
+  error_message: string | null;
+  activated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function activateBCP(crisisId: string, payload: { bcp_plan_id?: string; bcp_plan_name?: string; notes?: string }) {
+  return fetchJson<ContinuityActivation>(`/api/v1/crisis/${crisisId}/activate-bcp`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function listActivations(crisisId: string) {
+  return fetchJson<ContinuityActivation[]>(`/api/v1/crisis/${crisisId}/activations`);
+}
+
+// ─── P2.3 Media monitoring ─────────────────────────────────────────────────
+export interface MediaMention {
+  id: string;
+  outlet: string;
+  url: string | null;
+  headline: string | null;
+  snippet: string;
+  author: string | null;
+  sentiment: Sentiment | null;
+  sentiment_score: number | null;
+  key_themes: string[];
+  analyzed_at: string | null;
+  crisis_id: string | null;
+  mentioned_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaCoverage {
+  crisis_id: string;
+  total_mentions: number;
+  analyzed_count: number;
+  counts: { positive: number; neutral: number; negative: number; mixed: number };
+  average_score: number | null;
+  top_themes: string[];
+  by_outlet: Record<string, number>;
+  mentions: MediaMention[];
+}
+
+export async function listMediaMentions(params?: { crisis_id?: string }) {
+  const q = new URLSearchParams();
+  if (params?.crisis_id) q.set("crisis_id", params.crisis_id);
+  return fetchJson<MediaMention[]>(`/api/v1/media-mentions/?${q.toString()}`);
+}
+
+export async function createMediaMention(payload: { outlet: string; snippet: string; url?: string; headline?: string; author?: string; crisis_id?: string; auto_analyze?: boolean }) {
+  return fetchJson<MediaMention>("/api/v1/media-mentions/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function analyzeMediaMention(id: string) {
+  return fetchJson<MediaMention>(`/api/v1/media-mentions/${id}/analyze`, { method: "POST" });
+}
+
+export async function deleteMediaMention(id: string) {
+  return fetchJson<void>(`/api/v1/media-mentions/${id}`, { method: "DELETE" });
+}
+
+export async function getMediaCoverage(crisisId: string) {
+  return fetchJson<MediaCoverage>(`/api/v1/media-mentions/coverage/${crisisId}`);
+}
+
+// ─── P2.4 Legal Hold ───────────────────────────────────────────────────────
+export type LegalHoldStatus = "draft" | "active" | "released";
+
+export interface LegalHoldCustodian {
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+export interface LegalHold {
+  id: string;
+  crisis_id: string | null;
+  title: string;
+  scope_description: string | null;
+  custodians: LegalHoldCustodian[];
+  data_sources: string[];
+  hold_notice_text: string | null;
+  status: LegalHoldStatus;
+  issued_at: string | null;
+  released_at: string | null;
+  issued_by: string | null;
+  release_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listLegalHolds(params?: { crisis_id?: string; active_only?: boolean }) {
+  const q = new URLSearchParams();
+  if (params?.crisis_id) q.set("crisis_id", params.crisis_id);
+  if (params?.active_only) q.set("active_only", "true");
+  return fetchJson<LegalHold[]>(`/api/v1/legal-holds/?${q.toString()}`);
+}
+
+export async function createLegalHold(payload: { crisis_id?: string; title: string; scope_description?: string; custodians?: LegalHoldCustodian[]; data_sources?: string[]; hold_notice_text?: string; issued_by?: string }) {
+  return fetchJson<LegalHold>("/api/v1/legal-holds/", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export async function updateLegalHold(id: string, payload: Partial<Omit<LegalHold, "id" | "created_at" | "updated_at" | "status" | "issued_at" | "released_at" | "release_reason">>) {
+  return fetchJson<LegalHold>(`/api/v1/legal-holds/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+}
+
+export async function issueLegalHold(id: string) {
+  return fetchJson<LegalHold>(`/api/v1/legal-holds/${id}/issue`, { method: "POST" });
+}
+
+export async function releaseLegalHold(id: string, reason?: string) {
+  return fetchJson<LegalHold>(`/api/v1/legal-holds/${id}/release`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export async function deleteLegalHold(id: string) {
+  return fetchJson<void>(`/api/v1/legal-holds/${id}`, { method: "DELETE" });
+}
+
+export async function draftHoldNotice(crisisId: string) {
+  return fetchJson<{ notice_text: string }>(`/api/v1/crisis/${crisisId}/draft-hold-notice`, { method: "POST" });
+}
+
+export interface EvidenceRecommendation {
+  data_sources: { name: string; type: string; rationale: string }[];
+  custodians: { role: string; reason: string }[];
+  preservation_duration_days_min: number;
+}
+
+export async function recommendEvidence(crisisId: string) {
+  return fetchJson<EvidenceRecommendation>(`/api/v1/crisis/${crisisId}/recommend-evidence`, { method: "POST" });
+}
+
 export { ApiError };
