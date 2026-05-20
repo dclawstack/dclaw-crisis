@@ -1,10 +1,11 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Literal
 
 from app.core.database import get_db
+from app.core.idempotency import cached_or_run
 from app.core.utils import utc_now
 from app.models.crisis import Crisis
 from app.models.signal import Signal, SignalStatus
@@ -48,8 +49,49 @@ async def _apply_score(signal: Signal, db: AsyncSession) -> None:
 
 
 @router.post("/", response_model=SignalResponse, status_code=201)
-async def ingest_signal(payload: SignalIngest, db: AsyncSession = Depends(get_db)):
-    """Ingest a raw signal from any source (webhook, manual entry, internal monitor)."""
+async def ingest_signal(
+    payload: SignalIngest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    """Ingest a raw signal from any source (webhook, manual entry, internal monitor).
+
+    Webhooks may retry — pass the same `Idempotency-Key` header to deduplicate.
+    Cached responses surface via `Idempotency-Replayed: true` on the reply.
+    """
+    async def _do_ingest() -> dict:
+        signal = await _create_and_score(payload, db)
+        return _signal_to_dict(signal)
+
+    body, replayed = await cached_or_run("signals", idempotency_key, producer=_do_ingest)
+    if replayed:
+        response.headers["Idempotency-Replayed"] = "true"
+    return body
+
+
+def _signal_to_dict(s: Signal) -> dict:
+    """Hand-roll the serialization since cached_or_run stores JSON."""
+    return {
+        "id": s.id,
+        "source": s.source,
+        "source_url": s.source_url,
+        "raw_text": s.raw_text,
+        "ai_summary": s.ai_summary,
+        "ai_severity": s.ai_severity,
+        "ai_category": s.ai_category,
+        "ai_confidence": s.ai_confidence,
+        "ai_rationale": s.ai_rationale,
+        "ai_recommends_promotion": s.ai_recommends_promotion,
+        "status": s.status,
+        "crisis_id": s.crisis_id,
+        "detected_at": s.detected_at.isoformat() if s.detected_at else None,
+        "created_at": s.created_at.isoformat(),
+        "updated_at": s.updated_at.isoformat(),
+    }
+
+
+async def _create_and_score(payload: SignalIngest, db: AsyncSession) -> Signal:
     signal = Signal(
         source=payload.source,
         source_url=payload.source_url,

@@ -1,6 +1,7 @@
 """AI Crisis Summarizer — generates an executive summary of a Crisis."""
 from __future__ import annotations
 
+from app.core.cache import cache_get_or_set
 from app.models.crisis import Crisis
 from app.services.crisis_context import render_crisis_context
 from app.services.llm import complete
@@ -15,7 +16,12 @@ SYSTEM_PROMPT = (
 
 
 async def summarize_crisis(crisis: Crisis) -> str:
-    context = render_crisis_context(crisis)
-    user = f"Summarize the following crisis for the leadership team.\n\n{context}"
-    res = await complete(SYSTEM_PROMPT, user, temperature=0.3, max_tokens=800)
-    return res.text.strip()
+    cache_key = f"ai:summary:{crisis.id}:{crisis.updated_at.isoformat()}"
+
+    async def _generate() -> str:
+        context = render_crisis_context(crisis)
+        user = f"Summarize the following crisis for the leadership team.\n\n{context}"
+        res = await complete(SYSTEM_PROMPT, user, temperature=0.3, max_tokens=800)
+        return res.text.strip()
+
+    return await cache_get_or_set(cache_key, None, _generate)

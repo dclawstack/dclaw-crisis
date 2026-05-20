@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.rate_limit import hourly_limit
 from app.services.copilot import copilot_chat
 from app.services.llm import ChatMessage, LLMUnavailableError
 
@@ -23,7 +24,7 @@ class CopilotChatResponse(BaseModel):
     reply: str
 
 
-@router.post("/chat", response_model=CopilotChatResponse)
+@router.post("/chat", response_model=CopilotChatResponse, dependencies=[Depends(hourly_limit("copilot-chat"))])
 async def chat_endpoint(payload: CopilotChatRequest, db: AsyncSession = Depends(get_db)):
     if not payload.messages:
         raise HTTPException(status_code=400, detail="messages cannot be empty")

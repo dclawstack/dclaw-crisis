@@ -12,6 +12,7 @@ Returns a dict shaped for the API endpoint to return directly.
 """
 from __future__ import annotations
 
+from app.core.cache import cache_get_or_set
 from app.models.crisis import Crisis
 from app.services.crisis_context import render_crisis_context
 from app.services.llm import complete_json
@@ -34,6 +35,11 @@ SYSTEM_PROMPT = (
 
 
 async def generate_post_mortem(crisis: Crisis) -> dict:
+    cache_key = f"ai:post-mortem:{crisis.id}:{crisis.updated_at.isoformat()}"
+    return await cache_get_or_set(cache_key, None, lambda: _run_post_mortem(crisis))
+
+
+async def _run_post_mortem(crisis: Crisis) -> dict:
     context = render_crisis_context(crisis, max_actions=50, max_comms=30)
     user = (
         f"Produce a post-mortem for the following crisis.\n"

@@ -6,9 +6,15 @@ from sqlalchemy.pool import NullPool
 
 from app.api.main import app
 from app.api.deps.auth import require_user
+from app.core import config as cfg
 from app.core.database import get_db
+from app.core.redis_client import set_test_client
 from app.models.base import Base
 from app.services.auth.base import Principal
+
+# Disable Redis by default — caching / rate-limit / idempotency become no-ops
+# unless a test installs a fakeredis client via the `fake_redis` fixture.
+cfg.settings.redis_disabled = True
 
 TEST_DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -64,3 +70,18 @@ async def unauthenticated_client():
             yield ac
     finally:
         app.dependency_overrides[require_user] = _override_require_user
+
+
+@pytest_asyncio.fixture
+async def fake_redis():
+    """Inject a fakeredis async client for tests exercising cache/ratelimit/idempotency."""
+    import fakeredis.aioredis as fa
+    client = fa.FakeRedis(decode_responses=True)
+    set_test_client(client)
+    cfg.settings.redis_disabled = False
+    try:
+        yield client
+    finally:
+        await client.aclose()
+        set_test_client(None)
+        cfg.settings.redis_disabled = True
