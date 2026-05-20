@@ -15,6 +15,8 @@ from app.services.auth.base import Principal
 # Disable Redis by default — caching / rate-limit / idempotency become no-ops
 # unless a test installs a fakeredis client via the `fake_redis` fixture.
 cfg.settings.redis_disabled = True
+# MinIO simulator-mode by default so tests don't need a running MinIO.
+cfg.settings.minio_disabled = True
 
 TEST_DATABASE_URL = os.environ.get(
     "DATABASE_URL",

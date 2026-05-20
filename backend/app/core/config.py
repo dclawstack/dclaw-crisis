@@ -50,6 +50,24 @@ class Settings(BaseSettings):
     # TTL for /signals/ idempotency keys.
     signals_idempotency_ttl_seconds: int = 3600
 
+    # MinIO / object storage — used for exporting legal-hold notices and
+    # post-mortem documents. Set MINIO_DISABLED=true (or leave endpoint empty)
+    # to fall back to an in-memory simulator that still produces presigned-style
+    # URLs (just locally hosted) — handy for dev + tests.
+    minio_endpoint: str = "localhost:9020"
+    # MinIO presigned URLs include the host as part of the signature. When the
+    # backend talks to MinIO over an internal docker hostname (`minio:9000`)
+    # but the browser needs the host-port mapping (`127.0.0.1:9020`), set
+    # MINIO_PUBLIC_ENDPOINT to the externally-reachable host and presigning
+    # uses that — uploads still use MINIO_ENDPOINT.
+    minio_public_endpoint: str = ""
+    minio_access_key: str = "dclaw-crisis"
+    minio_secret_key: str = "change-me-in-production"
+    minio_secure: bool = False
+    minio_bucket: str = "dclaw-crisis-exports"
+    minio_disabled: bool = False
+    minio_presign_seconds: int = 3600
+
     model_config = ConfigDict(
         env_file=(_REPO_ROOT / ".env", _REPO_ROOT / "backend" / ".env"),
         case_sensitive=False,
