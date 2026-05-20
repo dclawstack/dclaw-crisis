@@ -1,9 +1,11 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.object_store import get_object_store
 from app.core.utils import utc_now
 from app.models.legal_hold import LegalHold, LegalHoldStatus
 from app.schemas.legal_hold import (
@@ -13,6 +15,7 @@ from app.schemas.legal_hold import (
     ReleaseRequest,
 )
 from app.repositories.legal_hold_repo import LegalHoldRepository
+from app.services.exports import render_legal_hold_notice
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -106,3 +109,33 @@ async def delete_hold(hold_id: str, db: AsyncSession = Depends(get_db)):
     if h.status == LegalHoldStatus.active.value:
         raise HTTPException(status_code=400, detail="Cannot delete an active hold; release it first")
     await repo.delete(h)
+
+
+class HoldExportResponse(BaseModel):
+    key: str
+    url: str
+    backend: str
+    size_bytes: int
+
+
+@router.post("/{hold_id}/export", response_model=HoldExportResponse)
+async def export_hold(hold_id: str, db: AsyncSession = Depends(get_db)):
+    """Render the hold to a plain-text document and store in the object store.
+
+    Returns a (presigned, when MinIO is enabled) URL the operator can hand
+    off to outside counsel.
+    """
+    h = await LegalHoldRepository(db).get_by_id(hold_id)
+    if not h:
+        raise HTTPException(status_code=404, detail="Legal hold not found")
+    text = render_legal_hold_notice(h)
+    key = f"legal-holds/{h.id}/notice.txt"
+    store = get_object_store()
+    store.put_text(key, text, content_type="text/plain")
+    url = store.presigned_get_url(key)
+    return HoldExportResponse(
+        key=key,
+        url=url,
+        backend=getattr(store, "backend", "unknown"),
+        size_bytes=len(text.encode("utf-8")),
+    )

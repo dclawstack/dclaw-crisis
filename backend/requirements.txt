@@ -14,3 +14,4 @@ email-validator>=2.1.0
 redis[hiredis]>=5.0.0
 fakeredis[lua]>=2.20.0
 prometheus-client>=0.20.0
+minio>=7.2.0

@@ -15,6 +15,7 @@ from app.services.ai_stakeholder_prioritizer import prioritize_stakeholders
 from app.services.ai_resource_matcher import match_resources
 from app.services.ai_legal_hold import draft_hold_notice, recommend_evidence
 from app.services.continuity_client import activate_bcp
+from app.services.exports import render_post_mortem_markdown
 from app.services.llm import LLMUnavailableError
 from app.repositories.communication_repo import CommunicationRepository
 from app.repositories.continuity_repo import ContinuityActivationRepository
@@ -24,6 +25,7 @@ from app.schemas.continuity_activation import (
     ContinuityActivationResponse,
 )
 from app.core.utils import utc_now
+from app.core.object_store import get_object_store
 from app.core.rate_limit import hourly_limit
 
 _ai_rl = [Depends(hourly_limit("ai-crisis"))]
@@ -442,3 +444,34 @@ async def recommend_evidence_endpoint(crisis_id: str, db: AsyncSession = Depends
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=502, detail=f"AI returned malformed JSON: {exc}")
     return EvidenceRecommendation(**data)
+
+
+class PostMortemExportResponse(BaseModel):
+    key: str
+    url: str
+    backend: str
+    size_bytes: int
+
+
+@router.post(
+    "/{crisis_id}/export-post-mortem",
+    response_model=PostMortemExportResponse,
+    dependencies=_ai_rl,
+)
+async def export_post_mortem(crisis_id: str, db: AsyncSession = Depends(get_db)):
+    """Generate a post-mortem (cached via Redis) and store as markdown."""
+    crisis = await CrisisRepository(db).get_by_id(crisis_id)
+    if not crisis:
+        raise HTTPException(status_code=404, detail="Crisis not found")
+    try:
+        post_mortem = await generate_post_mortem(crisis)
+    except LLMUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    md = render_post_mortem_markdown(crisis, post_mortem)
+    key = f"crises/{crisis.id}/post-mortem.md"
+    store = get_object_store()
+    store.put_text(key, md, content_type="text/markdown")
+    url = store.presigned_get_url(key)
+    return PostMortemExportResponse(
+        key=key, url=url, backend=getattr(store, "backend", "unknown"), size_bytes=len(md.encode("utf-8"))
+    )
