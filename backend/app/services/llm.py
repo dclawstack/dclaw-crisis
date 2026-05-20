@@ -76,6 +76,8 @@ async def _try_openrouter(messages: list[dict[str, str]], temperature: float, ma
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
+    from app.core.metrics import llm_provider_calls_total
+
     try:
         async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
             resp = await client.post(url, headers=headers, json=payload)
@@ -85,10 +87,13 @@ async def _try_openrouter(messages: list[dict[str, str]], temperature: float, ma
             text = _extract_message_text(message)
             if not text:
                 logger.warning("openrouter returned empty content: %s", data)
+                llm_provider_calls_total.labels(provider="openrouter", outcome="empty").inc()
                 return None
+            llm_provider_calls_total.labels(provider="openrouter", outcome="ok").inc()
             return LLMResponse(text=text, provider="openrouter", model=settings.openrouter_model)
     except Exception as exc:
         logger.warning("openrouter failed: %s", exc)
+        llm_provider_calls_total.labels(provider="openrouter", outcome="error").inc()
         return None
 
 
@@ -100,15 +105,22 @@ async def _try_ollama(messages: list[dict[str, str]], temperature: float, max_to
         "stream": False,
         "options": {"temperature": temperature, "num_predict": max_tokens},
     }
+    from app.core.metrics import llm_provider_calls_total
+
     try:
         async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
             text = data.get("message", {}).get("content", "")
+            if not text:
+                llm_provider_calls_total.labels(provider="ollama", outcome="empty").inc()
+                return None
+            llm_provider_calls_total.labels(provider="ollama", outcome="ok").inc()
             return LLMResponse(text=text, provider="ollama", model=settings.ollama_model)
     except Exception as exc:
         logger.warning("ollama failed: %s", exc)
+        llm_provider_calls_total.labels(provider="ollama", outcome="error").inc()
         return None
 
 

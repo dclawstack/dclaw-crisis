@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.core.cache import cache_get_or_set
+from app.core.metrics import time_ai_call
 from app.models.crisis import Crisis
 from app.services.crisis_context import render_crisis_context
 from app.services.llm import complete_json
@@ -19,8 +20,9 @@ async def recommend_next_action(crisis: Crisis) -> dict:
     cache_key = f"ai:next-action:{crisis.id}:{crisis.updated_at.isoformat()}"
 
     async def _generate() -> dict:
-        context = render_crisis_context(crisis)
-        user = f"Recommend the next-best-action for this crisis:\n\n{context}"
-        return await complete_json(SYSTEM_PROMPT, user, temperature=0.3, max_tokens=400)
+        async with time_ai_call("next_action"):
+            context = render_crisis_context(crisis)
+            user = f"Recommend the next-best-action for this crisis:\n\n{context}"
+            return await complete_json(SYSTEM_PROMPT, user, temperature=0.3, max_tokens=400)
 
     return await cache_get_or_set(cache_key, None, _generate)
