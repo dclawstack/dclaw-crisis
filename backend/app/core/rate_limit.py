@@ -31,6 +31,12 @@ async def _check(bucket_key: str, limit: int, window_seconds: int) -> None:
         logger.warning("rate-limit check failed for %s: %s", bucket_key, exc)
         return  # fail open
     if new_count > limit:
+        from app.core.metrics import rate_limit_blocks_total
+        try:
+            scope_label = bucket_key.split(":", 2)[1]
+        except IndexError:
+            scope_label = "unknown"
+        rate_limit_blocks_total.labels(scope=scope_label).inc()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Rate limit exceeded: {limit} requests per {window_seconds}s",

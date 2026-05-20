@@ -50,6 +50,8 @@ async def cached_or_run(
 
     if cached is not None:
         try:
+            from app.core.metrics import idempotency_replays_total
+            idempotency_replays_total.labels(scope=scope).inc()
             return json.loads(cached), True
         except (TypeError, ValueError):
             pass  # fall through and overwrite

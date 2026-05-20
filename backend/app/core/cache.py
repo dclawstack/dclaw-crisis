@@ -14,6 +14,8 @@ T = TypeVar("T")
 
 
 async def cache_get(key: str) -> Any | None:
+    from app.core.metrics import cache_events_total
+
     client = get_redis()
     if client is None:
         return None
@@ -23,20 +25,26 @@ async def cache_get(key: str) -> Any | None:
         logger.warning("cache_get(%s) failed: %s", key, exc)
         return None
     if raw is None:
+        cache_events_total.labels(event="miss").inc()
         return None
     try:
-        return json.loads(raw)
+        value = json.loads(raw)
     except (TypeError, ValueError):
         return None
+    cache_events_total.labels(event="hit").inc()
+    return value
 
 
 async def cache_set(key: str, value: Any, ttl_seconds: int | None = None) -> None:
+    from app.core.metrics import cache_events_total
+
     client = get_redis()
     if client is None:
         return
     ttl = ttl_seconds if ttl_seconds is not None else settings.ai_cache_ttl_seconds
     try:
         await client.set(key, json.dumps(value), ex=ttl)
+        cache_events_total.labels(event="set").inc()
     except (TypeError, Exception) as exc:  # noqa: BLE001
         logger.warning("cache_set(%s) failed: %s", key, exc)
 
