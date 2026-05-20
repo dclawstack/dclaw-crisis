@@ -11,3 +11,4 @@ from app.models.simulation import Simulation, SimulationStatus
 from app.models.continuity_activation import ContinuityActivation, ActivationStatus
 from app.models.media_mention import MediaMention, MentionSentiment
 from app.models.legal_hold import LegalHold, LegalHoldStatus
+from app.models.user import User

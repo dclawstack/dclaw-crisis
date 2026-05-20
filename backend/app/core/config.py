@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     continuity_api_url: str = ""
     continuity_api_key: str = ""
 
+    # Auth provider (PRD §4). "local" = signin/signup + HS256 JWTs we sign.
+    # "logto" = redirect to Logto + verify Logto-issued JWTs (stub today).
+    auth_provider: str = "local"
+    # Skip auth entirely — for local dev convenience and to keep existing
+    # integration tests working until they're updated to attach a token.
+    auth_disabled: bool = False
+    logto_endpoint: str = ""
+    logto_app_id: str = ""
+    logto_app_secret: str = ""
+
     model_config = ConfigDict(
         env_file=(_REPO_ROOT / ".env", _REPO_ROOT / "backend" / ".env"),
         case_sensitive=False,
