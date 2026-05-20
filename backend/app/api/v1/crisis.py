@@ -24,6 +24,9 @@ from app.schemas.continuity_activation import (
     ContinuityActivationResponse,
 )
 from app.core.utils import utc_now
+from app.core.rate_limit import hourly_limit
+
+_ai_rl = [Depends(hourly_limit("ai-crisis"))]
 
 router = APIRouter()
 
@@ -106,7 +109,7 @@ class NextActionResponse(BaseModel):
     suggested_assignee_role: str
 
 
-@router.post("/{crisis_id}/summarize", response_model=SummaryResponse)
+@router.post("/{crisis_id}/summarize", response_model=SummaryResponse, dependencies=_ai_rl)
 async def summarize(crisis_id: str, db: AsyncSession = Depends(get_db)):
     repo = CrisisRepository(db)
     crisis = await repo.get_by_id(crisis_id)
@@ -119,7 +122,7 @@ async def summarize(crisis_id: str, db: AsyncSession = Depends(get_db)):
     return SummaryResponse(summary=text)
 
 
-@router.get("/{crisis_id}/next-action", response_model=NextActionResponse)
+@router.get("/{crisis_id}/next-action", response_model=NextActionResponse, dependencies=_ai_rl)
 async def next_action(crisis_id: str, db: AsyncSession = Depends(get_db)):
     repo = CrisisRepository(db)
     crisis = await repo.get_by_id(crisis_id)
@@ -159,7 +162,7 @@ class PlaybookAdvisorResponse(BaseModel):
     suggested_changes: list[PlaybookChange]
 
 
-@router.post("/{crisis_id}/post-mortem", response_model=PostMortemResponse)
+@router.post("/{crisis_id}/post-mortem", response_model=PostMortemResponse, dependencies=_ai_rl)
 async def post_mortem(crisis_id: str, db: AsyncSession = Depends(get_db)):
     """Generate a structured post-mortem. Works best for resolved/contained crises but accepts any status."""
     repo = CrisisRepository(db)
@@ -175,7 +178,7 @@ async def post_mortem(crisis_id: str, db: AsyncSession = Depends(get_db)):
     return PostMortemResponse(**data)
 
 
-@router.post("/{crisis_id}/suggest-playbook-updates", response_model=PlaybookAdvisorResponse)
+@router.post("/{crisis_id}/suggest-playbook-updates", response_model=PlaybookAdvisorResponse, dependencies=_ai_rl)
 async def suggest_playbook_changes(crisis_id: str, db: AsyncSession = Depends(get_db)):
     """Suggest concrete updates to the closest-matching playbook based on this crisis."""
     repo = CrisisRepository(db)
@@ -223,7 +226,7 @@ class ResourceRecommendationsResponse(BaseModel):
     gaps: list[str]
 
 
-@router.get("/{crisis_id}/stakeholder-priorities", response_model=StakeholderPrioritiesResponse)
+@router.get("/{crisis_id}/stakeholder-priorities", response_model=StakeholderPrioritiesResponse, dependencies=_ai_rl)
 async def stakeholder_priorities(crisis_id: str, db: AsyncSession = Depends(get_db)):
     """Rank which stakeholders to contact and how, given the crisis context."""
     repo = CrisisRepository(db)
@@ -239,7 +242,7 @@ async def stakeholder_priorities(crisis_id: str, db: AsyncSession = Depends(get_
     return StakeholderPrioritiesResponse(**data)
 
 
-@router.get("/{crisis_id}/recommend-resources", response_model=ResourceRecommendationsResponse)
+@router.get("/{crisis_id}/recommend-resources", response_model=ResourceRecommendationsResponse, dependencies=_ai_rl)
 async def recommend_resources(crisis_id: str, db: AsyncSession = Depends(get_db)):
     """Recommend which resources to deploy for this crisis."""
     repo = CrisisRepository(db)
@@ -415,7 +418,7 @@ class EvidenceRecommendation(BaseModel):
     preservation_duration_days_min: int
 
 
-@router.post("/{crisis_id}/draft-hold-notice", response_model=DraftHoldResponse)
+@router.post("/{crisis_id}/draft-hold-notice", response_model=DraftHoldResponse, dependencies=_ai_rl)
 async def draft_hold_notice_endpoint(crisis_id: str, db: AsyncSession = Depends(get_db)):
     crisis = await CrisisRepository(db).get_by_id(crisis_id)
     if not crisis:
@@ -427,7 +430,7 @@ async def draft_hold_notice_endpoint(crisis_id: str, db: AsyncSession = Depends(
     return DraftHoldResponse(notice_text=text)
 
 
-@router.post("/{crisis_id}/recommend-evidence", response_model=EvidenceRecommendation)
+@router.post("/{crisis_id}/recommend-evidence", response_model=EvidenceRecommendation, dependencies=_ai_rl)
 async def recommend_evidence_endpoint(crisis_id: str, db: AsyncSession = Depends(get_db)):
     crisis = await CrisisRepository(db).get_by_id(crisis_id)
     if not crisis:

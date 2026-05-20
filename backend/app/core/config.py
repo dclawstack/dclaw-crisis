@@ -38,6 +38,18 @@ class Settings(BaseSettings):
     logto_app_id: str = ""
     logto_app_secret: str = ""
 
+    # Redis — used for AI response caching, rate limiting, and idempotency keys.
+    redis_url: str = "redis://localhost:6379/0"
+    # When true, cache/ratelimit/idempotency become no-ops. Used for tests and
+    # for dev environments where Redis isn't running.
+    redis_disabled: bool = False
+    # AI rate limit per principal per hour. Tweak per environment.
+    ai_rate_limit_per_hour: int = 60
+    # TTLs for AI response caching (seconds).
+    ai_cache_ttl_seconds: int = 600
+    # TTL for /signals/ idempotency keys.
+    signals_idempotency_ttl_seconds: int = 3600
+
     model_config = ConfigDict(
         env_file=(_REPO_ROOT / ".env", _REPO_ROOT / "backend" / ".env"),
         case_sensitive=False,
