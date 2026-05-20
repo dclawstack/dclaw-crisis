@@ -8,15 +8,35 @@ class ApiError extends Error {
   }
 }
 
+const TOKEN_KEY = "dclaw-crisis-token";
+
+function readToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+function clearSessionFromApi() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem("dclaw-crisis-user");
+  window.dispatchEvent(new CustomEvent("dclaw-auth-changed"));
+}
+
 async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const response = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-    ...options,
-  });
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options?.headers as Record<string, string> | undefined),
+  };
+  const token = readToken();
+  if (token && !headers["Authorization"]) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const response = await fetch(url, { ...options, headers });
+  if (response.status === 401) {
+    // Token rejected — drop the stored session so AuthGuard kicks in next paint.
+    clearSessionFromApi();
+  }
   if (!response.ok) {
     const error = await response.text();
     throw new ApiError(`API error ${response.status}: ${error}`, response.status);
@@ -25,6 +45,39 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
     return undefined as T;
   }
   return response.json();
+}
+
+// ─── Auth API ─────────────────────────────────────────────────────────────
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string | null;
+  auth_provider: string;
+  is_active: boolean;
+  is_admin: boolean;
+}
+
+export interface AuthSession {
+  user: AuthUser;
+  token: { access_token: string; token_type: "bearer"; expires_in: number };
+}
+
+export async function signup(payload: { email: string; password: string; name?: string }) {
+  return fetchJson<AuthSession>("/api/v1/auth/signup", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function signin(payload: { email: string; password: string }) {
+  return fetchJson<AuthSession>("/api/v1/auth/signin", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getMe() {
+  return fetchJson<AuthUser>("/api/v1/auth/me");
 }
 
 export async function getHealth() {
