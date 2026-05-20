@@ -24,7 +24,7 @@ status: Active
 | **Category** | Operations |
 | **Tagline** | Crisis response |
 | **Color** | #EC4899 |
-| **Phase** | Future |
+| **Phase** | Active |
 | **Port (Frontend Dev)** | 3079 (assigned) |
 | **Port (Backend Dev)** | 18149 (assigned) |
 | **Maturity Tier** | 🟢 Tier 3 — Production-Ready Foundation |
@@ -51,13 +51,13 @@ status: Active
 ### 2.2 Code Maturity
 | Metric | Value |
 |--------|-------|
-| Python source files (backend) | ~37 |
-| TypeScript/TSX files (frontend) | ~18 |
-| Total source files | ~55 |
-| Tests | ✅ 34 passing |
-| Alembic migrations | ✅ Present |
+| Python source files (backend) | ~75 |
+| TypeScript/TSX files (frontend) | ~30 |
+| Total source files | ~105 |
+| Tests | ✅ 90 passing |
+| Alembic migrations | ✅ 4 migrations (initial, signal, stakeholder+resource, comm-delivery+sentiment, p2) |
 | DPanel manifest | ✅ Present |
-| LLM provider integration | ✅ OpenRouter + Ollama fallback |
+| LLM provider integration | ✅ OpenRouter (Kimi K2 Thinking) + Ollama fallback |
 | AI Copilot UI | ✅ Floating chat on every route |
 
 ### 2.3 Feature Maturity
@@ -77,9 +77,20 @@ status: Active
 | 4 | No response plan templates (P0.3) | 🟡 | ✅ Closed | 5 seeded playbooks + `POST /playbooks/{id}/instantiate` |
 | 5 | Command Center lacks resource view + decision support | 🟡 | ✅ Closed | Dashboard now polls every 15s, shows team availability + AI recommendation for top-severity active crisis |
 | 6 | Crisis Detection (P0.2) | 🟡 | ✅ Closed | Signal ingestion contract + AI scoring shipped (`/api/v1/signals/`); see §14. Pollers for real sources (RSS/social/news) deferred to integration work. |
-| 7 | Stakeholder Mapping (P1.2) | 🟡 | ⏳ Pending | v1.4 candidate |
-| 8 | Resource Mobilization (P1.3) | 🟡 | ⏳ Pending | v1.4 candidate |
-| 9 | Post-Crisis Review (P1.4) | 🟡 | ⏳ Pending | v1.4 candidate — AI lessons-extraction over resolved crises |
+| 7 | Stakeholder Mapping (P1.2) | 🟡 | ✅ Closed | `Stakeholder` model + AI prioritizer + `/crisis/{id}/stakeholder-priorities` + UI; see §16 |
+| 8 | Resource Mobilization (P1.3) | 🟡 | ✅ Closed | `Resource` model + AI matcher + `/crisis/{id}/recommend-resources` + UI; see §16 |
+| 9 | Post-Crisis Review (P1.4) | 🟡 | ✅ Closed | `/crisis/{id}/post-mortem` + `/suggest-playbook-updates`; see §15 |
+| 10 | Channel send-out (P1.1 Phase 2) | 🟡 | ✅ Closed | Simulator-pattern channel adapters + `/communications/{id}/send`; see §17 |
+| 11 | Audience sentiment monitoring (P1.1 Phase 2) | 🟡 | ✅ Closed | AI sentiment + risk flags + per-crisis trend; see §17 |
+| 12 | Simulation & Training (P2.1) | 🟢 | ✅ Closed | AI scenario generator + evaluator + full lifecycle; see §18 |
+| 13 | Continuity Integration (P2.2) | 🟢 | ✅ Closed | `ContinuityActivation` + client (real or simulator); see §18 |
+| 14 | Media Monitoring (P2.3) | 🟢 | ✅ Closed | `MediaMention` + AI sentiment + per-crisis coverage; see §18 |
+| 15 | Legal Hold (P2.4) | 🟢 | ✅ Closed | `LegalHold` lifecycle + AI notice drafter + evidence recommender; see §18 |
+| 16 | Auth (Logto JWT, §4) | 🟡 | ⏳ Pending | Endpoints currently open. Next sprint: local provider + JWT, Logto-pluggable. |
+| 17 | Redis (§4) | 🟡 | ⏳ Pending | Cache / rate-limit / idempotency. Not yet running. |
+| 18 | Prometheus + Grafana (§4) | 🟡 | ⏳ Pending | `/metrics` endpoint + provisioned dashboards. |
+| 19 | MinIO (§4) | 🟡 | ⏳ Pending | Object store for export artifacts (legal-hold PDFs, post-mortems). |
+| 20 | Stripe billing (§4) | 🟡 | ⏳ Deferred | Not in current scope. |
 
 ---
 
@@ -199,19 +210,26 @@ Every DClaw app MUST have an AI Copilot as its first P0 feature. The copilot mus
 
 ## 10. Next Tasks for Vibe Coders
 
-1. **Real channel + integration providers** — swap simulator-mode adapters (channels, continuity client) for real implementations (SendGrid/Slack/Twilio, live Continuity API).
-2. **First real signal source integration** — RSS poller / webhook adapter against `/api/v1/signals/`.
-3. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
-4. **Stakeholder communication scheduling** — schedule follow-ups per stakeholder per crisis.
-5. **Resource reservation flow** — `deploy_now` recommendations get a click-to-reserve that flips status to `in_use` with a crisis link.
-6. **Simulation participants linkage** — connect Simulation.participants to TeamMember IDs and track per-participant performance.
-7. **Media monitoring ingestion automation** — RSS / Google Alerts / Twitter webhook adapters posting to `/media-mentions/`.
-8. **Legal hold reminders** — periodic acknowledgement emails to custodians while a hold is active.
-5. **Real channel provider integrations** — replace simulator adapters with SendGrid/SES (email), Slack Web API or Incoming Webhooks, Twilio (SMS).
-6. **First real signal source integration** — RSS poller (or webhook adapter) that posts to `/api/v1/signals/`.
-7. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
-8. **Stakeholder communication scheduling** — schedule follow-ups per stakeholder per crisis.
-9. **Resource reservation** — `deploy_now` recommendations get a click-to-reserve that flips status to `in_use` with a crisis link.
+**Architecture mandate (§4) — still pending:**
+1. **Auth** — local signin/signup + JWT, Logto-pluggable provider interface so we can swap in Logto later without rewriting protected routes.
+2. **Redis** — caching, idempotency keys for `/signals` ingestion, rate-limit middleware.
+3. **Prometheus + Grafana** — `/metrics` endpoint, provisioned dashboard for HTTP latency / AI call counts / DB pool stats.
+4. **MinIO** — object store for exportable artifacts (legal-hold notice PDFs, post-mortem documents).
+5. **Stripe** — deferred per product call.
+
+**Integration polish:**
+6. **Real channel providers** — replace simulator adapters with SendGrid/SES (email), Slack Web API (slack), Twilio (sms).
+7. **First real signal source** — RSS poller / webhook adapter against `/api/v1/signals/`.
+8. **Media monitoring ingestion automation** — RSS / Google Alerts / webhook adapters posting to `/media-mentions/`.
+9. **Continuity API** — connect to the live DClaw Continuity service once available.
+
+**Feature depth:**
+10. **Playbook advisor → one-click apply** — accept individual `suggested_changes` and write them back to the playbook (with audit trail).
+11. **Stakeholder communication scheduling** — schedule follow-ups per stakeholder per crisis.
+12. **Resource reservation flow** — `deploy_now` recommendations get a click-to-reserve that flips status to `in_use` with a crisis link.
+13. **Simulation participants linkage** — connect `Simulation.participants` to `TeamMember` IDs; per-participant performance tracking.
+14. **Legal hold reminders** — periodic acknowledgement emails to custodians while a hold is active.
+15. **Copilot RAG** — pgvector / Qdrant index over post-mortems + playbooks; surface semantic context in chat.
 
 ---
 
@@ -231,8 +249,6 @@ Inspired by Crisp, Dataminr, Everbridge, OnSolve. AI crisis management minimizes
 | **Port Registry** | See `dclaw-platform/PORT_REGISTRY.md` |
 | **App PRD Template** | Obsidian Vault → `00-META/📐 App PRD Template.md` |
 | **Scaffold Source** | `dclaw-scaffold/` in DClaw-Stack |
-
----
 
 ---
 
@@ -290,8 +306,6 @@ The PRD originally framed P0.2 as "monitor 1000 sources." That number is aspirat
 
 ---
 
----
-
 ## 15. P0 polish + P1.4 — design notes (2026-05-18)
 
 This release completes the remaining P0 polish items and ships P1.4 Post-Crisis Review.
@@ -311,8 +325,6 @@ This release completes the remaining P0 polish items and ships P1.4 Post-Crisis 
 - Endpoints live under `POST /crisis/{id}/post-mortem` and `POST /crisis/{id}/suggest-playbook-updates`. Both work on any crisis status but the UI nudges the operator to use them on resolved/contained crises where context is richer.
 
 **Tests**: 52 passing (10 new, covering post-mortem 200/404, advisor with/without matching playbook, AI customization with/without context, junk-entry filtering).
-
----
 
 ---
 
@@ -345,8 +357,6 @@ This separation matters because each maps to a different AI workflow: TeamMember
 
 ---
 
----
-
 ## 17. P1.1 Phase 2 — design notes (2026-05-19)
 
 Closes the last open P1 feature. PRD §6 P1.1 was "draft + distribute + monitor sentiment" — drafting shipped earlier; this release covers distribution and sentiment.
@@ -374,8 +384,6 @@ Closes the last open P1 feature. PRD §6 P1.1 was "draft + distribute + monitor 
 - Crisis detail: new "Sentiment Trend" card with trend direction + sparkline; only visible when at least one comm exists.
 
 **Tests**: 12 new — channel adapter dispatch (parametrized over all 4 channels), already-sent 400, send 404, sentiment persistence (positive + negative paths), risk-flag aggregation, trend aggregation with mixed positive/negative comms + an unanalyzed comm, empty trend, 404. Full suite: **76 passing**.
-
----
 
 ---
 
