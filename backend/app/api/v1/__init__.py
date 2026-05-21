@@ -5,7 +5,7 @@ from app.api.v1 import (
     auth as auth_router_module,
     crisis, team_members, action_items, communications, playbooks,
     dashboard, copilot, signals, stakeholders, resources,
-    simulations, media_mentions, legal_holds,
+    simulations, media_mentions, legal_holds, demo,
 )
 
 # Auth endpoints (signup/signin) MUST NOT require auth themselves.
@@ -30,3 +30,4 @@ v1_router.include_router(resources.router, prefix="/resources", tags=["resources
 v1_router.include_router(simulations.router, prefix="/simulations", tags=["simulations"], dependencies=_auth_deps)
 v1_router.include_router(media_mentions.router, prefix="/media-mentions", tags=["media-mentions"], dependencies=_auth_deps)
 v1_router.include_router(legal_holds.router, prefix="/legal-holds", tags=["legal-holds"], dependencies=_auth_deps)
+v1_router.include_router(demo.router, prefix="/demo", tags=["demo"], dependencies=_auth_deps)

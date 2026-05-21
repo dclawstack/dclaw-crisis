@@ -801,4 +801,36 @@ export async function recommendEvidence(crisisId: string) {
   return fetchJson<EvidenceRecommendation>(`/api/v1/crisis/${crisisId}/recommend-evidence`, { method: "POST" });
 }
 
+// ─── Demo data (landing page seeder) ──────────────────────────────────────
+export interface DemoCounts {
+  crises: number;
+  team_members: number;
+  stakeholders: number;
+  resources: number;
+  signals: number;
+  simulations: number;
+  legal_holds: number;
+  media_mentions: number;
+}
+
+export interface DemoStatus {
+  seeded: boolean;
+  counts: DemoCounts;
+}
+
+export async function getDemoStatus() {
+  return fetchJson<DemoStatus>("/api/v1/demo/status");
+}
+
+export async function seedDemo() {
+  return fetchJson<DemoCounts & { created: number; skipped: number | string }>(
+    "/api/v1/demo/seed",
+    { method: "POST" },
+  );
+}
+
+export async function clearDemo() {
+  return fetchJson<Record<string, number>>("/api/v1/demo/clear", { method: "POST" });
+}
+
 export { ApiError };

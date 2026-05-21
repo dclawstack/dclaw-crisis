@@ -30,6 +30,7 @@ import {
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DemoSection } from "@/components/DemoSection";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -148,6 +149,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
             <a href="#features" className="hover:text-gray-900 transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-gray-900 transition-colors">How It Works</a>
+            <a href="#demo" className="hover:text-gray-900 transition-colors">Demo</a>
             <a href="#crisis-types" className="hover:text-gray-900 transition-colors">Crisis Types</a>
             <a href="#testimonials" className="hover:text-gray-900 transition-colors">Customers</a>
           </div>
@@ -292,6 +294,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* DEMO — seed / clear */}
+      <DemoSection />
 
       {/* DASHBOARD PREVIEW */}
       <section className="py-24 bg-gradient-to-b from-gray-900 to-gray-800 text-white overflow-hidden">
