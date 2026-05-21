@@ -41,6 +41,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: minio:9000
       MINIO_PUBLIC_ENDPOINT: 127.0.0.1:9020
+      # Demo seeder — local-stack convenience. Remove this line in production
+      # configs so /api/v1/demo/{seed,reset} return 403.
+      ENABLE_DEMO_MODE: "true"
       APP_ENV: production
     ports:
       - "18149:18149"

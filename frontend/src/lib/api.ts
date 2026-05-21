@@ -801,4 +801,48 @@ export async function recommendEvidence(crisisId: string) {
   return fetchJson<EvidenceRecommendation>(`/api/v1/crisis/${crisisId}/recommend-evidence`, { method: "POST" });
 }
 
+// ─── Demo landing-page seeder (public, gated by ENABLE_DEMO_MODE) ──────────
+export interface DemoCounts {
+  crises: number;
+  team_members: number;
+  stakeholders: number;
+  resources: number;
+  signals: number;
+  simulations: number;
+  legal_holds: number;
+  media_mentions: number;
+}
+
+export interface DemoStatus {
+  enabled: boolean;
+  seeded: boolean;
+  counts: DemoCounts;
+}
+
+export interface DemoCredentials {
+  email: string;
+  password: string;
+}
+
+export interface DemoSeedResponse extends DemoStatus {
+  result: { created: number; skipped: number | string } & Partial<DemoCounts>;
+  demo_credentials: DemoCredentials;
+}
+
+export interface DemoResetResponse extends DemoStatus {
+  deleted: Record<string, number>;
+}
+
+export async function getDemoStatus() {
+  return fetchJson<DemoStatus>("/api/v1/demo/status");
+}
+
+export async function seedDemo() {
+  return fetchJson<DemoSeedResponse>("/api/v1/demo/seed", { method: "POST" });
+}
+
+export async function resetDemo() {
+  return fetchJson<DemoResetResponse>("/api/v1/demo/reset", { method: "DELETE" });
+}
+
 export { ApiError };
