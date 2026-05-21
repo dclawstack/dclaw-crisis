@@ -30,4 +30,6 @@ v1_router.include_router(resources.router, prefix="/resources", tags=["resources
 v1_router.include_router(simulations.router, prefix="/simulations", tags=["simulations"], dependencies=_auth_deps)
 v1_router.include_router(media_mentions.router, prefix="/media-mentions", tags=["media-mentions"], dependencies=_auth_deps)
 v1_router.include_router(legal_holds.router, prefix="/legal-holds", tags=["legal-holds"], dependencies=_auth_deps)
-v1_router.include_router(demo.router, prefix="/demo", tags=["demo"], dependencies=_auth_deps)
+# Demo router is PUBLIC — landing-page visitors hit /status before they sign
+# in. /seed and /reset are gated by ENABLE_DEMO_MODE flag instead of auth.
+v1_router.include_router(demo.router, prefix="/demo", tags=["demo"])

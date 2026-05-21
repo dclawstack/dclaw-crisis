@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Boxes,
+  Copy,
   GraduationCap,
   Loader2,
   Newspaper,
@@ -15,50 +16,72 @@ import {
   Zap,
 } from "lucide-react";
 
-import { getDemoStatus, seedDemo, clearDemo, type DemoCounts, type DemoStatus } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
+import {
+  getDemoStatus,
+  seedDemo,
+  resetDemo,
+  signin,
+  type DemoStatus,
+  type DemoCredentials,
+  type DemoCounts,
+} from "@/lib/api";
+import { setSession } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 
-const ENTITIES: { key: keyof DemoCounts; label: string; href: string; icon: typeof Zap }[] = [
-  { key: "crises", label: "Crises", href: "/crisis", icon: AlertTriangle },
-  { key: "signals", label: "Signals", href: "/signals", icon: Zap },
-  { key: "stakeholders", label: "Stakeholders", href: "/stakeholders", icon: Users },
-  { key: "resources", label: "Resources", href: "/resources", icon: Boxes },
-  { key: "simulations", label: "Simulations", href: "/simulations", icon: GraduationCap },
-  { key: "media_mentions", label: "Media", href: "/media", icon: Newspaper },
-  { key: "legal_holds", label: "Legal Holds", href: "/legal-holds", icon: Scale },
+const ENTITIES: { key: keyof DemoCounts; label: string }[] = [
+  { key: "crises", label: "Crises" },
+  { key: "signals", label: "Signals" },
+  { key: "stakeholders", label: "Stakeholders" },
+  { key: "resources", label: "Resources" },
+  { key: "simulations", label: "Simulations" },
+  { key: "media_mentions", label: "Media mentions" },
+  { key: "legal_holds", label: "Legal holds" },
+  { key: "team_members", label: "Team members" },
 ];
+
+const ENTITY_ICON: Record<string, typeof Zap> = {
+  crises: AlertTriangle,
+  signals: Zap,
+  stakeholders: Users,
+  resources: Boxes,
+  simulations: GraduationCap,
+  media_mentions: Newspaper,
+  legal_holds: Scale,
+  team_members: Users,
+};
 
 
 export function DemoSection() {
-  const { user, token, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [status, setStatus] = useState<DemoStatus | null>(null);
-  const [busy, setBusy] = useState<"seed" | "clear" | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const [credentials, setCredentials] = useState<DemoCredentials | null>(null);
+  const [probed, setProbed] = useState(false);
+  const [busy, setBusy] = useState<"seed" | "reset" | "signin" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function refresh() {
-    if (!token) return;
-    setStatusLoading(true);
+  async function refreshStatus() {
     try {
-      setStatus(await getDemoStatus());
+      const s = await getDemoStatus();
+      setStatus(s);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load demo status");
+      // Backend may not be reachable yet — keep the section hidden.
+      setStatus(null);
     } finally {
-      setStatusLoading(false);
+      setProbed(true);
     }
   }
 
   useEffect(() => {
-    if (token) refresh();
-  }, [token]);
+    refreshStatus();
+  }, []);
 
   async function handleSeed() {
     setBusy("seed");
     setError(null);
     try {
-      await seedDemo();
-      await refresh();
+      const res = await seedDemo();
+      setStatus({ enabled: res.enabled, seeded: res.seeded, counts: res.counts });
+      setCredentials(res.demo_credentials);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Seed failed");
     } finally {
@@ -66,23 +89,44 @@ export function DemoSection() {
     }
   }
 
-  async function handleClear() {
-    if (!confirm("Remove all demo data? This cannot be undone (real data is untouched).")) return;
-    setBusy("clear");
+  async function handleReset() {
+    if (!confirm("Remove all demo data and the demo user? This cannot be undone (real data is untouched).")) return;
+    setBusy("reset");
     setError(null);
     try {
-      await clearDemo();
-      await refresh();
+      const res = await resetDemo();
+      setStatus({ enabled: res.enabled, seeded: res.seeded, counts: res.counts });
+      setCredentials(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Clear failed");
+      setError(e instanceof Error ? e.message : "Reset failed");
     } finally {
       setBusy(null);
     }
   }
 
+  async function handleSignInAsDemo() {
+    if (!credentials) return;
+    setBusy("signin");
+    setError(null);
+    try {
+      const res = await signin(credentials);
+      setSession(res.token.access_token, res.user);
+      router.replace("/dashboard");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sign-in failed");
+      setBusy(null);
+    }
+  }
+
+  // Auto-hide the section entirely until we've heard back from the backend
+  // and it's enabled. Production builds with ENABLE_DEMO_MODE=false never
+  // render the section.
+  if (!probed) return null;
+  if (!status || !status.enabled) return null;
+
   return (
     <section id="demo" className="py-20 sm:py-24 bg-gradient-to-br from-pink-50 via-white to-rose-50">
-      <div className="mx-auto max-w-5xl px-6">
+      <div className="mx-auto max-w-4xl px-6">
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 rounded-full bg-pink-600 text-white px-3 py-1 text-xs font-medium mb-3">
             <Sparkles className="h-3 w-3" />
@@ -90,28 +134,21 @@ export function DemoSection() {
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">See it in action</h2>
           <p className="mt-3 text-base text-gray-600 max-w-2xl mx-auto">
-            One click loads a realistic incident-response dataset — two crises (one active, one resolved),
-            a team roster, stakeholders, AI-scored signals, a media coverage feed, and more.
-            Clear it any time.
+            One click loads a realistic incident-response dataset and creates a demo user. Sign in
+            as that user, explore every feature, then tear it all down when you're done.
           </p>
         </div>
 
         <div className="rounded-2xl border border-pink-200 bg-white shadow-lg p-6 sm:p-8">
-          {authLoading ? (
-            <div className="text-center text-sm text-gray-500 py-8">Loading…</div>
-          ) : !user ? (
-            <SignedOutCTA />
-          ) : status === null ? (
-            <div className="text-center text-sm text-gray-500 py-8">
-              {statusLoading ? "Checking demo status…" : "—"}
-            </div>
+          {!status.seeded ? (
+            <EmptyPanel onSeed={handleSeed} busy={busy} />
           ) : (
-            <SignedInPanel
-              status={status}
+            <SeededPanel
+              counts={status.counts}
+              credentials={credentials}
               busy={busy}
-              statusLoading={statusLoading}
-              onSeed={handleSeed}
-              onClear={handleClear}
+              onSignIn={handleSignInAsDemo}
+              onReset={handleReset}
             />
           )}
           {error && (
@@ -125,104 +162,153 @@ export function DemoSection() {
   );
 }
 
-function SignedOutCTA() {
+function EmptyPanel({ onSeed, busy }: { onSeed: () => void; busy: string | null }) {
   return (
-    <div className="text-center space-y-5 py-4">
+    <div className="space-y-5 text-center">
       <p className="text-sm text-gray-700">
-        Sign up (or sign in) to seed the demo dataset into your workspace.
+        Demo workspace is empty. Click below to populate ~25 rows across crises, signals, stakeholders,
+        resources, simulations, media mentions, and a legal hold — plus a pre-created demo user you can sign in as.
       </p>
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <Link href="/signup?next=/#demo"><Button size="lg" className="bg-pink-600 hover:bg-pink-700">Create demo account</Button></Link>
-        <Link href="/signin?next=/#demo"><Button size="lg" variant="outline">Sign in</Button></Link>
-      </div>
+      <Button
+        size="lg"
+        onClick={onSeed}
+        disabled={busy !== null}
+        className="bg-pink-600 hover:bg-pink-700"
+      >
+        {busy === "seed" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+        Seed demo data
+      </Button>
       <p className="text-[11px] text-gray-500">
-        Local stack — accounts and demo data live only in your own database.
+        Demo rows are tagged with a <code className="bg-slate-100 px-1 py-0.5 rounded">DEMO:</code> prefix.
+        Clearing only removes those — anything you add yourself stays.
       </p>
     </div>
   );
 }
 
-interface SignedInPanelProps {
-  status: DemoStatus;
-  busy: "seed" | "clear" | null;
-  statusLoading: boolean;
-  onSeed: () => void;
-  onClear: () => void;
+interface SeededPanelProps {
+  counts: DemoCounts;
+  credentials: DemoCredentials | null;
+  busy: string | null;
+  onSignIn: () => void;
+  onReset: () => void;
 }
 
-function SignedInPanel({ status, busy, statusLoading, onSeed, onClear }: SignedInPanelProps) {
-  if (!status.seeded) {
-    return (
-      <div className="space-y-5">
-        <div className="text-center space-y-3 py-4">
-          <p className="text-sm text-gray-700">
-            Workspace is empty (well, no demo data anyway). Click <strong>Seed demo data</strong> to
-            load the dataset — it takes about a second and creates roughly 25 rows across 8 entity types.
-          </p>
-        </div>
-        <div className="flex justify-center">
-          <Button size="lg" onClick={onSeed} disabled={busy !== null} className="bg-pink-600 hover:bg-pink-700">
-            {busy === "seed" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            Seed demo data
-          </Button>
-        </div>
-        <p className="text-center text-[11px] text-gray-500">
-          Demo rows are prefixed with <code className="bg-slate-100 px-1 py-0.5 rounded">DEMO:</code> —
-          clearing only removes those, never anything you've added yourself.
-        </p>
-      </div>
-    );
-  }
-
+function SeededPanel({ counts, credentials, busy, onSignIn, onReset }: SeededPanelProps) {
   return (
     <div className="space-y-6">
-      <div className="text-center">
-        <p className="text-sm text-gray-700">
-          Demo data loaded. Jump into any of these and the AI Copilot is ready in the bottom-right of every page.
-        </p>
-      </div>
+      <p className="text-sm text-center text-gray-700">
+        Demo data loaded. Sign in as the demo user to explore every feature page — the AI Copilot is ready
+        in the bottom-right corner from the moment you land.
+      </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {ENTITIES.map(({ key, label, href, icon: Icon }) => {
-          const count = status.counts[key];
-          if (!count) return null;
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {ENTITIES.filter(e => counts[e.key] > 0).map(({ key, label }) => {
+          const Icon = ENTITY_ICON[key] || Zap;
           return (
-            <Link
+            <div
               key={key}
-              href={href}
-              className="group rounded-lg border border-slate-200 hover:border-pink-300 hover:shadow-sm transition p-3 bg-white"
+              className="rounded-lg border border-slate-200 bg-white p-3 flex items-center gap-3"
             >
-              <div className="flex items-center gap-2 text-pink-600">
-                <Icon className="h-4 w-4" />
-                <span className="text-2xl font-bold text-gray-900 tabular-nums">{count}</span>
+              <Icon className="h-4 w-4 text-pink-600 shrink-0" />
+              <div>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums leading-none">{counts[key]}</div>
+                <div className="text-[11px] text-slate-600 mt-1">{label}</div>
               </div>
-              <div className="mt-0.5 text-xs text-slate-600 group-hover:text-pink-700">{label}</div>
-            </Link>
+            </div>
           );
         })}
       </div>
 
+      {credentials && <CredentialsCard creds={credentials} />}
+
       <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2 border-t border-slate-100">
-        <Link href="/dashboard">
-          <Button size="lg" className="bg-pink-600 hover:bg-pink-700 w-full sm:w-auto">
-            Open Command Center →
+        {credentials && (
+          <Button
+            size="lg"
+            onClick={onSignIn}
+            disabled={busy !== null}
+            className="bg-pink-600 hover:bg-pink-700 w-full sm:w-auto"
+          >
+            {busy === "signin" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Sign in as demo user →
           </Button>
-        </Link>
+        )}
         <Button
           size="lg"
           variant="outline"
-          onClick={onClear}
+          onClick={onReset}
           disabled={busy !== null}
           className="text-red-700 border-red-200 hover:bg-red-50 hover:text-red-800"
         >
-          {busy === "clear" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+          {busy === "reset" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
           Clear demo data
         </Button>
       </div>
 
-      {statusLoading && (
-        <p className="text-center text-[11px] text-gray-400">Refreshing status…</p>
+      {!credentials && (
+        <p className="text-center text-[11px] text-gray-500">
+          Demo already seeded in another tab. Use the credentials shown when you first ran Seed, or click
+          Clear and re-seed to retrieve them.
+        </p>
       )}
     </div>
+  );
+}
+
+function CredentialsCard({ creds }: { creds: DemoCredentials }) {
+  const [copied, setCopied] = useState<"email" | "password" | null>(null);
+  async function copy(value: string, which: "email" | "password") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(which);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      // ignore — clipboard may not be available in some embeds
+    }
+  }
+  return (
+    <div className="rounded-lg border border-pink-200 bg-pink-50 p-3 space-y-2 text-sm">
+      <div className="text-xs font-semibold text-pink-700 uppercase tracking-wide">Demo credentials</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <CredRow label="Email" value={creds.email} which="email" copied={copied} onCopy={copy} />
+        <CredRow label="Password" value={creds.password} which="password" copied={copied} onCopy={copy} />
+      </div>
+      <p className="text-[11px] text-slate-600">
+        Or just click <strong>Sign in as demo user</strong> below — we'll log you in automatically.
+      </p>
+    </div>
+  );
+}
+
+function CredRow({
+  label,
+  value,
+  which,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  which: "email" | "password";
+  copied: "email" | "password" | null;
+  onCopy: (v: string, w: "email" | "password") => void;
+}) {
+  return (
+    <button
+      onClick={() => onCopy(value, which)}
+      className="flex items-center justify-between gap-2 rounded border border-pink-200 bg-white px-3 py-2 text-xs hover:border-pink-400 hover:bg-pink-50 transition"
+      type="button"
+    >
+      <span className="text-slate-500">{label}</span>
+      <span className="flex items-center gap-2">
+        <code className="font-mono text-slate-800">{value}</code>
+        {copied === which ? (
+          <span className="text-pink-700 font-medium">copied</span>
+        ) : (
+          <Copy className="h-3 w-3 text-slate-400" />
+        )}
+      </span>
+    </button>
   );
 }

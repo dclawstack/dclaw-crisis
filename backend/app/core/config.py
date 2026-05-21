@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     minio_disabled: bool = False
     minio_presign_seconds: int = 3600
 
+    # Demo landing-page seeder. Off by default — production deployments leave
+    # this off so the public /api/v1/demo/{seed,reset} endpoints return 403.
+    # With it on, anyone hitting the landing page can seed/reset the demo
+    # dataset and sign in as the demo user.
+    enable_demo_mode: bool = False
+    demo_user_email: str = "demo@dclaw-crisis.example"
+    demo_user_password: str = "DemoPass123!"
+    demo_user_name: str = "Demo Operator"
+
     model_config = ConfigDict(
         env_file=(_REPO_ROOT / ".env", _REPO_ROOT / "backend" / ".env"),
         case_sensitive=False,

@@ -1,6 +1,6 @@
-"""Seed and clear a realistic demo dataset.
+"""Seed and reset a realistic demo dataset.
 
-Every demo row is identifiable by a prefix on its primary text field:
+Every demo row is identifiable by an unambiguous marker:
 - Crisis.title         "DEMO: "
 - TeamMember.name      "DEMO: "
 - Stakeholder.name     "DEMO: "
@@ -9,18 +9,21 @@ Every demo row is identifiable by a prefix on its primary text field:
 - LegalHold.title      "DEMO: "
 - Signal.source        "demo:"
 - MediaMention.outlet  "DEMO "
+- User.email           settings.demo_user_email (single known address)
 
-Anything else (real data the operator entered) is left untouched on `clear`.
-ActionItems + Communications + ContinuityActivations cascade-delete when
-their parent Crisis is removed.
+`reset_demo` deletes ONLY rows matching these markers — real operator data is
+never touched. ActionItems, Communications, and ContinuityActivations cascade
+from Crisis, so they go too.
 """
 from __future__ import annotations
 
 from datetime import timedelta
 
+import bcrypt
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.utils import utc_now
 from app.models.action_item import ActionItem
 from app.models.communication import Communication
@@ -32,6 +35,7 @@ from app.models.signal import Signal, SignalStatus
 from app.models.simulation import Simulation, SimulationStatus
 from app.models.stakeholder import Stakeholder
 from app.models.team_member import TeamMember
+from app.models.user import User
 
 CRISIS_PREFIX = "DEMO: "
 TEAM_PREFIX = "DEMO: "
@@ -41,6 +45,11 @@ SIMULATION_PREFIX = "DEMO: "
 LEGAL_PREFIX = "DEMO: "
 SIGNAL_SOURCE_PREFIX = "demo:"
 MEDIA_OUTLET_PREFIX = "DEMO "
+
+
+def demo_credentials() -> dict[str, str]:
+    """Public credentials a landing-page visitor uses to sign in as the demo user."""
+    return {"email": settings.demo_user_email, "password": settings.demo_user_password}
 
 
 async def get_demo_counts(db: AsyncSession) -> dict[str, int]:
@@ -68,11 +77,33 @@ async def is_seeded(db: AsyncSession) -> bool:
 
 
 async def seed_demo(db: AsyncSession) -> dict[str, int]:
-    """Insert a realistic demo dataset. Idempotent — re-running is a no-op."""
+    """Insert a realistic demo dataset + create the demo user.
+
+    Idempotent — re-running returns the existing counts and the same
+    credentials so the frontend can keep showing the sign-in panel.
+    """
     if await is_seeded(db):
         return {"created": 0, "skipped": "already-seeded", **await get_demo_counts(db)}
 
     now = utc_now()
+
+    # ── Demo user (so a landing-page visitor can sign in without signup) ──
+    existing_user = (await db.execute(
+        select(User).where(User.email == settings.demo_user_email)
+    )).scalar_one_or_none()
+    if existing_user is None:
+        password_hash = bcrypt.hashpw(
+            settings.demo_user_password.encode("utf-8"), bcrypt.gensalt()
+        ).decode("ascii")
+        db.add(User(
+            email=settings.demo_user_email,
+            name=settings.demo_user_name,
+            password_hash=password_hash,
+            auth_provider="local",
+            is_active=True,
+            is_admin=False,
+        ))
+        await db.flush()
 
     # ── Team members ─────────────────────────────────────────────────
     incident_commander = TeamMember(
@@ -415,11 +446,13 @@ async def seed_demo(db: AsyncSession) -> dict[str, int]:
     return {"created": sum(counts.values()), "skipped": 0, **counts}
 
 
-async def clear_demo(db: AsyncSession) -> dict[str, int]:
-    """Remove every demo row. Real (non-prefixed) data is untouched.
+async def reset_demo(db: AsyncSession) -> dict[str, int]:
+    """Remove every demo row INCLUDING the demo user. Real (non-prefixed) data is untouched.
 
     Order: child tables first if cascade isn't enough, then crises so the
-    ActionItem/Communication/ContinuityActivation cascades fire.
+    ActionItem/Communication/ContinuityActivation cascades fire. Demo user is
+    deleted last — keyed by `settings.demo_user_email`, so only that single
+    address is touched.
     """
     deleted: dict[str, int] = {}
 
@@ -436,9 +469,17 @@ async def clear_demo(db: AsyncSession) -> dict[str, int]:
     deleted["resources"] = await _delete_where_prefix(db, Resource, "name", RESOURCE_PREFIX)
     deleted["team_members"] = await _delete_where_prefix(db, TeamMember, "name", TEAM_PREFIX)
 
+    # Demo user — keyed on the exact email so we can never collateral-delete anyone else.
+    user_res = await db.execute(delete(User).where(User.email == settings.demo_user_email))
+    deleted["users"] = user_res.rowcount or 0
+
     await db.commit()
     deleted["total"] = sum(deleted.values())
     return deleted
+
+
+# Backward-compatible alias for any external caller still using the old name.
+clear_demo = reset_demo
 
 
 async def _delete_where_prefix(db: AsyncSession, model, field_name: str, prefix: str) -> int:
