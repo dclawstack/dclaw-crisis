@@ -1,6 +1,6 @@
 apiVersion: v2
 name: dclaw-crisis
-description: A Helm chart for DClaw vertical SaaS app
+description: A Helm chart for the DClaw Crisis vertical SaaS app
 type: application
-version: 1.0.0
-appVersion: "1.0.0"
+version: 1.1.0
+appVersion: "2.0.0"

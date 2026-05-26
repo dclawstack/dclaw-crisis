@@ -1,0 +1,31 @@
+# Cloud / production overrides. Use with:
+#   helm install dclaw-crisis ./helm -n <ns> -f values-prod.yaml
+#
+# Note: MINIO_DISABLED / REDIS_DISABLED in secret.data reflect the local setup (the
+# original chart could provision minio + redis). Override secret.data to enable those
+# in a real deployment.
+
+backend:
+  image:
+    repository: ghcr.io/dclawstack/dclaw-crisis-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+frontend:
+  image:
+    repository: ghcr.io/dclawstack/dclaw-crisis-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: crisis.dclawstack.io
+  tls:
+    - secretName: dclaw-crisis-tls
+      hosts:
+        - crisis.dclawstack.io

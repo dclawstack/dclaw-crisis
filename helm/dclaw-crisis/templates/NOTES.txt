@@ -1,4 +1,0 @@
-DClaw Crisis deployed!
-
-Frontend: http://dclaw-crisis.local
-Backend API: http://dclaw-crisis-backend:8137
