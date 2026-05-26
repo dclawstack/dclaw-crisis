@@ -59,7 +59,7 @@ async def setup_db():
 
 @pytest_asyncio.fixture
 async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as ac:
         yield ac
 
 
@@ -68,7 +68,7 @@ async def unauthenticated_client():
     """Client without the require_user override — real auth is enforced."""
     app.dependency_overrides.pop(require_user, None)
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as ac:
             yield ac
     finally:
         app.dependency_overrides[require_user] = _override_require_user

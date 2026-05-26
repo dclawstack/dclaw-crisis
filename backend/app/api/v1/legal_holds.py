@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/", response_model=list[LegalHoldResponse])
+@router.get("", response_model=list[LegalHoldResponse])
 async def list_holds(
     crisis_id: str | None = None,
     active_only: bool = False,
@@ -38,7 +38,7 @@ async def list_holds(
     return items
 
 
-@router.post("/", response_model=LegalHoldResponse, status_code=201)
+@router.post("", response_model=LegalHoldResponse, status_code=201)
 async def create_hold(payload: LegalHoldCreate, db: AsyncSession = Depends(get_db)):
     hold = LegalHold(**payload.model_dump())
     return await LegalHoldRepository(db).create(hold)

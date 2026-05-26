@@ -10,7 +10,7 @@ from app.repositories.stakeholder_repo import StakeholderRepository
 router = APIRouter()
 
 
-@router.get("/", response_model=list[StakeholderResponse])
+@router.get("", response_model=list[StakeholderResponse])
 async def list_stakeholders(
     type: Literal["internal", "customer", "regulator", "media", "investor", "vendor", "partner", "board", "other"] | None = None,
     active_only: bool = False,
@@ -27,7 +27,7 @@ async def list_stakeholders(
     return items
 
 
-@router.post("/", response_model=StakeholderResponse, status_code=201)
+@router.post("", response_model=StakeholderResponse, status_code=201)
 async def create_stakeholder(payload: StakeholderCreate, db: AsyncSession = Depends(get_db)):
     repo = StakeholderRepository(db)
     s = Stakeholder(**payload.model_dump())

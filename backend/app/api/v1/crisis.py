@@ -33,7 +33,7 @@ _ai_rl = [Depends(hourly_limit("ai-crisis"))]
 router = APIRouter()
 
 
-@router.get("/", response_model=list[CrisisResponse])
+@router.get("", response_model=list[CrisisResponse])
 async def list_crises(
     status: Literal["detected", "assessing", "responding", "contained", "resolved", "post_mortem"] | None = None,
     severity: Literal["critical", "high", "medium", "low"] | None = None,
@@ -57,7 +57,7 @@ async def list_crises(
     return items
 
 
-@router.post("/", response_model=CrisisResponse, status_code=201)
+@router.post("", response_model=CrisisResponse, status_code=201)
 async def create_crisis(payload: CrisisCreate, db: AsyncSession = Depends(get_db)):
     repo = CrisisRepository(db)
     data = payload.model_dump()

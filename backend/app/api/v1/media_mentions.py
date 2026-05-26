@@ -38,7 +38,7 @@ async def _apply_analysis(m: MediaMention, db: AsyncSession) -> None:
     await db.refresh(m)
 
 
-@router.get("/", response_model=list[MediaMentionResponse])
+@router.get("", response_model=list[MediaMentionResponse])
 async def list_mentions(
     crisis_id: str | None = None,
     limit: int = Query(100, ge=1, le=500),
@@ -52,7 +52,7 @@ async def list_mentions(
     return items
 
 
-@router.post("/", response_model=MediaMentionResponse, status_code=201)
+@router.post("", response_model=MediaMentionResponse, status_code=201)
 async def create_mention(payload: MediaMentionCreate, db: AsyncSession = Depends(get_db)):
     mention = MediaMention(
         outlet=payload.outlet,

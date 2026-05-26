@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/", response_model=list[SimulationResponse])
+@router.get("", response_model=list[SimulationResponse])
 async def list_simulations(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -31,7 +31,7 @@ async def list_simulations(
     return items
 
 
-@router.post("/", response_model=SimulationResponse, status_code=201)
+@router.post("", response_model=SimulationResponse, status_code=201)
 async def create_simulation(payload: SimulationCreate, db: AsyncSession = Depends(get_db)):
     sim = Simulation(
         name=payload.name,

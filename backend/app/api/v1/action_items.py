@@ -10,7 +10,7 @@ from app.repositories.action_item_repo import ActionItemRepository
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ActionItemResponse])
+@router.get("", response_model=list[ActionItemResponse])
 async def list_action_items(
     crisis_id: str | None = None,
     assignee_id: str | None = None,
@@ -31,7 +31,7 @@ async def list_action_items(
     return items
 
 
-@router.post("/", response_model=ActionItemResponse, status_code=201)
+@router.post("", response_model=ActionItemResponse, status_code=201)
 async def create_action_item(payload: ActionItemCreate, db: AsyncSession = Depends(get_db)):
     repo = ActionItemRepository(db)
     item = ActionItem(**payload.model_dump())

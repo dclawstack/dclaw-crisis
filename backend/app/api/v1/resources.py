@@ -10,7 +10,7 @@ from app.repositories.resource_repo import ResourceRepository
 router = APIRouter()
 
 
-@router.get("/", response_model=list[ResourceResponse])
+@router.get("", response_model=list[ResourceResponse])
 async def list_resources(
     status: Literal["available", "reserved", "in_use", "unavailable"] | None = None,
     resource_type: Literal[
@@ -30,7 +30,7 @@ async def list_resources(
     return items
 
 
-@router.post("/", response_model=ResourceResponse, status_code=201)
+@router.post("", response_model=ResourceResponse, status_code=201)
 async def create_resource(payload: ResourceCreate, db: AsyncSession = Depends(get_db)):
     repo = ResourceRepository(db)
     r = Resource(**payload.model_dump())

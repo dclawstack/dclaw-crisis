@@ -10,7 +10,7 @@ from app.models.action_item import ActionItem, ActionItemStatus
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def get_dashboard(db: AsyncSession = Depends(get_db)):
     # Active crises (not resolved or post_mortem)
     active_stmt = select(func.count()).select_from(Crisis).where(

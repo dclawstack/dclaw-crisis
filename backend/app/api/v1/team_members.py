@@ -9,7 +9,7 @@ from app.repositories.team_member_repo import TeamMemberRepository
 router = APIRouter()
 
 
-@router.get("/", response_model=list[TeamMemberResponse])
+@router.get("", response_model=list[TeamMemberResponse])
 async def list_team_members(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -20,7 +20,7 @@ async def list_team_members(
     return items
 
 
-@router.post("/", response_model=TeamMemberResponse, status_code=201)
+@router.post("", response_model=TeamMemberResponse, status_code=201)
 async def create_team_member(payload: TeamMemberCreate, db: AsyncSession = Depends(get_db)):
     repo = TeamMemberRepository(db)
     member = TeamMember(**payload.model_dump())

@@ -48,7 +48,7 @@ async def _apply_score(signal: Signal, db: AsyncSession) -> None:
     await db.refresh(signal)
 
 
-@router.post("/", response_model=SignalResponse, status_code=201)
+@router.post("", response_model=SignalResponse, status_code=201)
 async def ingest_signal(
     payload: SignalIngest,
     response: Response,
@@ -106,7 +106,7 @@ async def _create_and_score(payload: SignalIngest, db: AsyncSession) -> Signal:
     return signal
 
 
-@router.get("/", response_model=list[SignalResponse])
+@router.get("", response_model=list[SignalResponse])
 async def list_signals(
     status: Literal["new", "triaged", "promoted", "dismissed"] | None = None,
     limit: int = Query(100, ge=1, le=200),

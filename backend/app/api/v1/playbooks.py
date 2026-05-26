@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/", response_model=list[PlaybookResponse])
+@router.get("", response_model=list[PlaybookResponse])
 async def list_playbooks(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -32,7 +32,7 @@ async def list_playbooks(
     return items
 
 
-@router.post("/", response_model=PlaybookResponse, status_code=201)
+@router.post("", response_model=PlaybookResponse, status_code=201)
 async def create_playbook(payload: PlaybookCreate, db: AsyncSession = Depends(get_db)):
     repo = PlaybookRepository(db)
     pb = Playbook(**payload.model_dump())

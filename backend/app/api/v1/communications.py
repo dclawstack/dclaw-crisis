@@ -19,7 +19,7 @@ from app.services.llm import LLMUnavailableError
 router = APIRouter()
 
 
-@router.get("/", response_model=list[CommunicationResponse])
+@router.get("", response_model=list[CommunicationResponse])
 async def list_communications(
     crisis_id: str | None = None,
     limit: int = Query(50, ge=1, le=100),
@@ -34,7 +34,7 @@ async def list_communications(
     return items
 
 
-@router.post("/", response_model=CommunicationResponse, status_code=201)
+@router.post("", response_model=CommunicationResponse, status_code=201)
 async def create_communication(payload: CommunicationCreate, db: AsyncSession = Depends(get_db)):
     repo = CommunicationRepository(db)
     comm = Communication(**payload.model_dump())
