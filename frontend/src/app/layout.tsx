@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Copilot } from "@/components/Copilot"
 import { AuthGuard } from "@/components/AuthGuard"
+import { AppShell } from "@/components/AppShell"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -20,7 +21,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthGuard>
-          {children}
+          <AppShell>
+            {children}
+          </AppShell>
           <Copilot />
         </AuthGuard>
       </body>

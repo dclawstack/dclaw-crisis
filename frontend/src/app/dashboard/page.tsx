@@ -13,10 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getDashboard, listCrises, listActionItems, listTeamMembers, getNextAction, type Crisis, type ActionItem, type TeamMember, type NextAction, ApiError } from "@/lib/api";
-import { Sparkles, Loader2, RefreshCw, LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { SituationMap } from "@/components/SituationMap";
-import { useAuth, clearSession } from "@/lib/auth";
 
 const ACTIVE_STATUSES = new Set(["detected", "assessing", "responding"]);
 const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -42,8 +40,6 @@ function statusColor(st: string) {
 }
 
 export default function Dashboard() {
-  const router = useRouter();
-  const { user } = useAuth();
   const [stats, setStats] = useState<{
     active_crises: number;
     open_action_items: number;
@@ -121,41 +117,15 @@ export default function Dashboard() {
   if (loading) return <div className="p-8">Loading dashboard...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
+    <div>
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">DClaw Crisis</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Command Center</h1>
           <p className="text-sm text-gray-500">AI-native Crisis & Incident Command Center</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap justify-end">
-          <div className="text-xs text-gray-500 flex items-center gap-2">
-            <RefreshCw className="h-3 w-3" />
-            {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}
-          </div>
-          {user && (
-            <div className="flex items-center gap-2 text-xs text-slate-600 border border-slate-200 rounded-full pl-3 pr-1 py-1">
-              <span className="truncate max-w-[180px]">{user.name || user.email}</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 p-0"
-                aria-label="Sign out"
-                onClick={() => { clearSession(); router.replace("/signin"); }}
-              >
-                <LogOut className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
-          <Link href="/signals"><Button variant="outline">Signals</Button></Link>
-          <Link href="/crisis"><Button variant="outline">Crises</Button></Link>
-          <Link href="/team"><Button variant="outline">Team</Button></Link>
-          <Link href="/stakeholders"><Button variant="outline">Stakeholders</Button></Link>
-          <Link href="/resources"><Button variant="outline">Resources</Button></Link>
-          <Link href="/action-items"><Button variant="outline">Action Items</Button></Link>
-          <Link href="/playbooks"><Button variant="outline">Playbooks</Button></Link>
-          <Link href="/simulations"><Button variant="outline">Simulations</Button></Link>
-          <Link href="/media"><Button variant="outline">Media</Button></Link>
-          <Link href="/legal-holds"><Button variant="outline">Legal Holds</Button></Link>
+        <div className="text-xs text-gray-500 flex items-center gap-2">
+          <RefreshCw className="h-3 w-3" />
+          {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString()}` : "Loading…"}
         </div>
       </header>
 
