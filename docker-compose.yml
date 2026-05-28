@@ -41,10 +41,17 @@ services:
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: minio:9000
       MINIO_PUBLIC_ENDPOINT: 127.0.0.1:9020
+      # Ollama runs on the HOST (not in a container), so from inside the
+      # container `localhost` is the container itself — not the host. We use
+      # host.docker.internal here; the `extra_hosts` line below makes that
+      # resolve on Linux (Docker Desktop on Mac/Windows resolves it natively).
+      OLLAMA_URL: http://host.docker.internal:11434
       # Demo seeder — local-stack convenience. Remove this line in production
       # configs so /api/v1/demo/{seed,reset} return 403.
       ENABLE_DEMO_MODE: "true"
       APP_ENV: production
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8061:8061"
     depends_on:
