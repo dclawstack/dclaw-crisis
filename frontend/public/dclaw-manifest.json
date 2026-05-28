@@ -8,8 +8,8 @@
   "maturity_tier": "tier-3-production",
   "version": "2.0.0",
   "ports": {
-    "frontend": 3079,
-    "backend": 18149
+    "frontend": 3061,
+    "backend": 8061
   },
   "database": "dclaw_crisis",
   "api_base": "/api/v1",
