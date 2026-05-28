@@ -46,14 +46,14 @@ services:
       ENABLE_DEMO_MODE: "true"
       APP_ENV: production
     ports:
-      - "18149:18149"
+      - "8061:8061"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18149/health/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8061/health/')"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -63,15 +63,15 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:18149
+        NEXT_PUBLIC_API_URL: http://localhost:8061
     environment:
-      PORT: 3079
+      PORT: 3061
     ports:
-      - "3079:3079"
+      - "3061:3061"
     depends_on:
       - backend
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3079/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3061/"]
       interval: 30s
       timeout: 5s
       retries: 3

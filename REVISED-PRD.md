@@ -25,8 +25,8 @@ status: Active
 | **Tagline** | Crisis response |
 | **Color** | #EC4899 |
 | **Phase** | Active |
-| **Port (Frontend Dev)** | 3079 (assigned) |
-| **Port (Backend Dev)** | 18149 (assigned) |
+| **Port (Frontend Dev)** | 3061 (assigned) |
+| **Port (Backend Dev)** | 8061 (assigned) |
 | **Maturity Tier** | 🟢 Tier 3 — Production-Ready Foundation |
 
 ---
@@ -191,7 +191,7 @@ Before marking this app "shipped", confirm:
 - [x] Health endpoint at `/health` returning `{"status":"ok"}`
 - [x] `AGENTS.md` with per-repo instructions
 - [x] `PLAN-v1.2.md` with feature roadmap
-- [x] Port assigned from registry and documented (`18149` backend / `3079` frontend)
+- [x] Port assigned from registry and documented (`8061` backend / `3061` frontend)
 - [x] No hardcoded secrets — use `.env.example` + K8s Secrets
 - [x] Non-root containers in Dockerfile
 
@@ -273,7 +273,7 @@ This release closes the foundational gaps identified in v2.3 of this PRD. Summar
 - `frontend/public/dclaw-manifest.json` — DPanel registration
 
 **Infra changes**
-- Ports migrated `8061 → 18149` (backend) and `3061 → 3079` (frontend) per PRD §1
+- Ports confirmed at `8061` (backend) and `3061` (frontend) — matching the scaffold defaults
 - `app/core/config.py` — added LLM provider settings (OpenRouter URL/model/key, Ollama URL/model)
 
 **Explicit deferrals**
