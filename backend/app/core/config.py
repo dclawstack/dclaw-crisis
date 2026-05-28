@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     openrouter_model: str = "moonshotai/kimi-k2-thinking"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1"
+    ollama_model: str = "llama3.2:3b"
     llm_timeout_seconds: int = 60
 
     # DClaw Continuity integration (P2.2). Leave URL empty to use simulator mode.
