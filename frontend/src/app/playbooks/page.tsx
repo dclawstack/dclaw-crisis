@@ -137,7 +137,6 @@ export default function PlaybooksPage() {
           <p className="text-sm text-gray-500">Crisis response templates</p>
         </div>
         <div className="flex gap-3">
-          <Link href="/dashboard"><Button variant="outline">Dashboard</Button></Link>
           <Button variant="outline" onClick={handleSeed}>Seed Templates</Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <Button onClick={() => setOpen(true)}>Create Playbook</Button>

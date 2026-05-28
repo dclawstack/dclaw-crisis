@@ -107,7 +107,6 @@ export default function ResourcesPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b px-6 py-4 flex items-center justify-between">
         <div>
-          <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">← Dashboard</Link>
           <div className="flex items-center gap-2 mt-1">
             <Boxes className="h-5 w-5 text-pink-600" />
             <h1 className="text-2xl font-bold text-gray-900">Resources</h1>
