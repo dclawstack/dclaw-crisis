@@ -97,6 +97,19 @@ async def _try_openrouter(messages: list[dict[str, str]], temperature: float, ma
         return None
 
 
+def _ollama_timeout(max_tokens: int) -> httpx.Timeout:
+    """Read timeout scaled to the token budget for slow local CPU inference.
+
+    A flat timeout (fine for cloud) cuts off large local generations partway
+    through. We size the *read* timeout to how long the model could plausibly
+    take to emit `max_tokens` (plus headroom for prompt processing), while
+    keeping connect/write short so a genuinely unreachable Ollama fails fast.
+    """
+    tps = settings.ollama_tokens_per_second or 4.0
+    read = max(settings.llm_timeout_seconds, 45 + max_tokens / tps)
+    return httpx.Timeout(read, connect=10.0, write=30.0, pool=10.0)
+
+
 async def _try_ollama(messages: list[dict[str, str]], temperature: float, max_tokens: int) -> LLMResponse | None:
     url = f"{settings.ollama_url.rstrip('/')}/api/chat"
     payload = {
@@ -108,7 +121,7 @@ async def _try_ollama(messages: list[dict[str, str]], temperature: float, max_to
     from app.core.metrics import llm_provider_calls_total
 
     try:
-        async with httpx.AsyncClient(timeout=settings.llm_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=_ollama_timeout(max_tokens)) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
