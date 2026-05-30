@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:3b"
     llm_timeout_seconds: int = 60
+    # Local Ollama models (e.g. llama3.2:3b on CPU) generate slowly — a few
+    # tokens/sec — so a flat timeout strangles larger generations. The Ollama
+    # read timeout is scaled by the request's token budget using this assumed
+    # throughput (deliberately conservative vs. measured rates to leave headroom
+    # for prompt processing and slower hardware). Raise it if your box is faster.
+    ollama_tokens_per_second: float = 4.0
 
     # DClaw Continuity integration (P2.2). Leave URL empty to use simulator mode.
     continuity_api_url: str = ""
