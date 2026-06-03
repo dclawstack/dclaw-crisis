@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     redis_disabled: bool = False
     # AI rate limit per principal per hour. Tweak per environment.
     ai_rate_limit_per_hour: int = 60
+    # Auth brute-force protection (pre-auth, so keyed by IP). Caps total
+    # /auth/signin+signup attempts per IP per minute, and locks an individual
+    # account after repeated failed sign-ins. Backed by the same Redis infra as
+    # the AI limiter — no-ops (fail open) when Redis is disabled.
+    auth_rate_limit_per_minute: int = 10
+    auth_max_failed_signins: int = 10
+    auth_lockout_seconds: int = 900
     # TTLs for AI response caching (seconds).
     ai_cache_ttl_seconds: int = 600
     # TTL for /signals/ idempotency keys.

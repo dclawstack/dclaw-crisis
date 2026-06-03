@@ -3,6 +3,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_user
 from app.core.database import get_db
+from app.core.rate_limit import (
+    assert_signin_allowed,
+    clear_signin_failures,
+    ip_limit,
+    register_signin_failure,
+)
 from app.repositories.user_repo import UserRepository
 from app.schemas.auth import (
     SigninRequest,
@@ -17,7 +23,12 @@ from app.services.auth.base import AuthError, Principal
 router = APIRouter()
 
 
-@router.post("/signup", response_model=SigninResponse, status_code=201)
+@router.post(
+    "/signup",
+    response_model=SigninResponse,
+    status_code=201,
+    dependencies=[Depends(ip_limit("auth"))],
+)
 async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)):
     provider = get_provider()
     try:
@@ -35,14 +46,29 @@ async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.post("/signin", response_model=SigninResponse)
+@router.post(
+    "/signin",
+    response_model=SigninResponse,
+    dependencies=[Depends(ip_limit("auth"))],
+)
 async def signin(payload: SigninRequest, db: AsyncSession = Depends(get_db)):
+    provider = get_provider()
+    # Per-account lockout only applies to local password auth — for delegated
+    # providers (Logto) we never verify a password here, so failed attempts
+    # aren't ours to count.
+    track_failures = provider.name == "local"
+    if track_failures:
+        await assert_signin_allowed(payload.email)
     try:
-        user, token, expires_in = await get_provider().signin(
+        user, token, expires_in = await provider.signin(
             db, email=payload.email, password=payload.password
         )
     except AuthError as exc:
+        if track_failures:
+            await register_signin_failure(payload.email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc))
+    if track_failures:
+        await clear_signin_failures(payload.email)
     return SigninResponse(
         user=UserResponse.model_validate(user),
         token=TokenResponse(access_token=token, expires_in=expires_in),
